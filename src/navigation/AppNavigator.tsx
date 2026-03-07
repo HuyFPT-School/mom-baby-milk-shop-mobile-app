@@ -13,7 +13,6 @@ import AccountScreen from "../screens/Auth/AccountScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
 
 // ── Placeholder screens ────────────────────────────────────────────────
-// Replace each with your real screen component later
 
 const Placeholder = ({ name }: { name: string }) => (
   <View style={styles.center}>
@@ -27,12 +26,16 @@ const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />
 const CartScreen = () => <Placeholder name="Giỏ hàng" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
+const BlogListScreen = () => <Placeholder name="Blog" />;
+const BlogPostScreen = () => <Placeholder name="Bài viết" />;
+const LoginScreen = () => <Placeholder name="Đăng nhập" />;
+const RegisterScreen = () => <Placeholder name="Đăng ký" />;
 const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
 const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
 const OrderTrackingScreen = () => <Placeholder name="Theo dõi đơn hàng" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
 
-// ── Stack navigators (one per tab) ─────────────────────────────────────
+// ── Stack navigators ───────────────────────────────────────────────────
 
 const HomeStack = createStackNavigator();
 const ProductsStack = createStackNavigator();
@@ -44,11 +47,7 @@ const Tab = createBottomTabNavigator();
 function HomeStackNavigator() {
   return (
     <HomeStack.Navigator>
-      <HomeStack.Screen
-        name="HomeScreen"
-        component={HomeScreen}
-        options={{ title: "MomBabyMilk" }}
-      />
+      <HomeStack.Screen name="HomeScreen" component={HomeScreen} options={{ title: 'MomBabyMilk' }} />
     </HomeStack.Navigator>
   );
 }
@@ -56,16 +55,8 @@ function HomeStackNavigator() {
 function ProductsStackNavigator() {
   return (
     <ProductsStack.Navigator>
-      <ProductsStack.Screen
-        name="ProductListing"
-        component={ProductListingScreen}
-        options={{ title: "Sản phẩm" }}
-      />
-      <ProductsStack.Screen
-        name="ProductDetail"
-        component={ProductDetailScreen}
-        options={{ title: "Chi tiết sản phẩm" }}
-      />
+      <ProductsStack.Screen name="ProductListing" component={ProductListingScreen} options={{ title: 'Sản phẩm' }} />
+      <ProductsStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Chi tiết sản phẩm' }} />
     </ProductsStack.Navigator>
   );
 }
@@ -73,21 +64,9 @@ function ProductsStackNavigator() {
 function CartStackNavigator() {
   return (
     <CartStack.Navigator>
-      <CartStack.Screen
-        name="CartScreen"
-        component={CartScreen}
-        options={{ title: "Giỏ hàng" }}
-      />
-      <CartStack.Screen
-        name="Checkout"
-        component={CheckoutScreen}
-        options={{ title: "Thanh toán" }}
-      />
-      <CartStack.Screen
-        name="PaymentResult"
-        component={PaymentResultScreen}
-        options={{ title: "Kết quả thanh toán" }}
-      />
+      <CartStack.Screen name="CartScreen" component={CartScreen} options={{ title: 'Giỏ hàng' }} />
+      <CartStack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Thanh toán' }} />
+      <CartStack.Screen name="PaymentResult" component={PaymentResultScreen} options={{ title: 'Kết quả thanh toán' }} />
     </CartStack.Navigator>
   );
 }
@@ -120,8 +99,11 @@ function BlogStackNavigator() {
 function AccountStackNavigator() {
   return (
     <AccountStack.Navigator>
+      {/* ✅ ProfileScreen thật — headerShown: false để ProfileScreen tự render header */}
       <AccountStack.Screen
         name="AccountScreen"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
         component={AccountScreen}
         options={{ title: "Tài khoản" }}
       />
@@ -155,6 +137,12 @@ function AccountStackNavigator() {
         component={SupportScreen}
         options={{ title: "Hỗ trợ" }}
       />
+      <AccountStack.Screen name="Login" component={LoginScreen} options={{ title: 'Đăng nhập' }} />
+      <AccountStack.Screen name="Register" component={RegisterScreen} options={{ title: 'Đăng ký' }} />
+      <AccountStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Quên mật khẩu' }} />
+      <AccountStack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ title: 'Xác thực email' }} />
+      <AccountStack.Screen name="OrderTracking" component={OrderTrackingScreen} options={{ title: 'Theo dõi đơn hàng' }} />
+      <AccountStack.Screen name="Support" component={SupportScreen} options={{ title: 'Hỗ trợ' }} />
     </AccountStack.Navigator>
   );
 }
@@ -173,28 +161,18 @@ export default function AppNavigator() {
           tabBarInactiveTintColor: Colors.textMuted,
           tabBarStyle: { paddingBottom: 4, height: 56 },
           tabBarIcon: ({ color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap = "ellipse-outline";
-
-            if (route.name === "Home") iconName = "home-outline";
-            else if (route.name === "Products") iconName = "grid-outline";
-            else if (route.name === "Cart") iconName = "cart-outline";
-            else if (route.name === "Blog") iconName = "newspaper-outline";
-            else if (route.name === "Account") iconName = "person-outline";
-
+            let iconName: keyof typeof Ionicons.glyphMap = 'ellipse-outline';
+            if (route.name === 'Home') iconName = 'home-outline';
+            else if (route.name === 'Products') iconName = 'grid-outline';
+            else if (route.name === 'Cart') iconName = 'cart-outline';
+            else if (route.name === 'Blog') iconName = 'newspaper-outline';
+            else if (route.name === 'Account') iconName = 'person-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
         })}
       >
-        <Tab.Screen
-          name="Home"
-          component={HomeStackNavigator}
-          options={{ tabBarLabel: "Trang chủ" }}
-        />
-        <Tab.Screen
-          name="Products"
-          component={ProductsStackNavigator}
-          options={{ tabBarLabel: "Sản phẩm" }}
-        />
+        <Tab.Screen name="Home" component={HomeStackNavigator} options={{ tabBarLabel: 'Trang chủ' }} />
+        <Tab.Screen name="Products" component={ProductsStackNavigator} options={{ tabBarLabel: 'Sản phẩm' }} />
         <Tab.Screen
           name="Cart"
           component={CartStackNavigator}
@@ -204,11 +182,7 @@ export default function AppNavigator() {
           }}
         />
         <Tab.Screen name="Blog" component={BlogStackNavigator} />
-        <Tab.Screen
-          name="Account"
-          component={AccountStackNavigator}
-          options={{ tabBarLabel: "Tài khoản" }}
-        />
+        <Tab.Screen name="Account" component={AccountStackNavigator} options={{ tabBarLabel: 'Tài khoản' }} />
       </Tab.Navigator>
     </NavigationContainer>
   );
