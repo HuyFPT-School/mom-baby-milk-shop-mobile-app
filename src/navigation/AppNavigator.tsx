@@ -1,11 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography } from '../constants/theme';
-import { useCart } from '../context/CartContext';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createStackNavigator } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors, Typography } from "../constants/theme";
+import { useCart } from "../context/CartContext";
+import BlogListScreen from "../screens/Blog/BlogListScreen";
+import BlogViewScreen from "../screens/Blog/BlogPostScreen";
+import LoginScreen from "../screens/Auth/LoginScreen";
+import AccountScreen from "../screens/Auth/AccountScreen";
+import RegisterScreen from "../screens/Auth/RegisterScreen";
 
 // ── Placeholder screens ────────────────────────────────────────────────
 // Replace each with your real screen component later
@@ -22,11 +27,6 @@ const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />
 const CartScreen = () => <Placeholder name="Giỏ hàng" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
-const BlogListScreen = () => <Placeholder name="Blog" />;
-const BlogPostScreen = () => <Placeholder name="Bài viết" />;
-const AccountScreen = () => <Placeholder name="Tài khoản" />;
-const LoginScreen = () => <Placeholder name="Đăng nhập" />;
-const RegisterScreen = () => <Placeholder name="Đăng ký" />;
 const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
 const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
 const OrderTrackingScreen = () => <Placeholder name="Theo dõi đơn hàng" />;
@@ -47,7 +47,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen
         name="HomeScreen"
         component={HomeScreen}
-        options={{ title: 'MomBabyMilk' }}
+        options={{ title: "MomBabyMilk" }}
       />
     </HomeStack.Navigator>
   );
@@ -59,12 +59,12 @@ function ProductsStackNavigator() {
       <ProductsStack.Screen
         name="ProductListing"
         component={ProductListingScreen}
-        options={{ title: 'Sản phẩm' }}
+        options={{ title: "Sản phẩm" }}
       />
       <ProductsStack.Screen
         name="ProductDetail"
         component={ProductDetailScreen}
-        options={{ title: 'Chi tiết sản phẩm' }}
+        options={{ title: "Chi tiết sản phẩm" }}
       />
     </ProductsStack.Navigator>
   );
@@ -76,17 +76,17 @@ function CartStackNavigator() {
       <CartStack.Screen
         name="CartScreen"
         component={CartScreen}
-        options={{ title: 'Giỏ hàng' }}
+        options={{ title: "Giỏ hàng" }}
       />
       <CartStack.Screen
         name="Checkout"
         component={CheckoutScreen}
-        options={{ title: 'Thanh toán' }}
+        options={{ title: "Thanh toán" }}
       />
       <CartStack.Screen
         name="PaymentResult"
         component={PaymentResultScreen}
-        options={{ title: 'Kết quả thanh toán' }}
+        options={{ title: "Kết quả thanh toán" }}
       />
     </CartStack.Navigator>
   );
@@ -98,12 +98,20 @@ function BlogStackNavigator() {
       <BlogStack.Screen
         name="BlogList"
         component={BlogListScreen}
-        options={{ title: 'Blog' }}
+        options={{ title: "Blog" }}
       />
       <BlogStack.Screen
         name="BlogPost"
-        component={BlogPostScreen}
-        options={{ title: 'Bài viết' }}
+        component={BlogViewScreen}
+        options={{
+          title: "Bài viết",
+          headerShown: true,
+          headerRight: () => (
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="ellipsis-horizontal" size={24} color="#333" />
+            </TouchableOpacity>
+          ),
+        }}
       />
     </BlogStack.Navigator>
   );
@@ -115,37 +123,37 @@ function AccountStackNavigator() {
       <AccountStack.Screen
         name="AccountScreen"
         component={AccountScreen}
-        options={{ title: 'Tài khoản' }}
+        options={{ title: "Tài khoản" }}
       />
       <AccountStack.Screen
         name="Login"
         component={LoginScreen}
-        options={{ title: 'Đăng nhập' }}
+        options={{ title: "Đăng nhập" }}
       />
       <AccountStack.Screen
         name="Register"
         component={RegisterScreen}
-        options={{ title: 'Đăng ký' }}
+        options={{ title: "Đăng ký" }}
       />
       <AccountStack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
-        options={{ title: 'Quên mật khẩu' }}
+        options={{ title: "Quên mật khẩu" }}
       />
       <AccountStack.Screen
         name="VerifyEmail"
         component={VerifyEmailScreen}
-        options={{ title: 'Xác thực email' }}
+        options={{ title: "Xác thực email" }}
       />
       <AccountStack.Screen
         name="OrderTracking"
         component={OrderTrackingScreen}
-        options={{ title: 'Theo dõi đơn hàng' }}
+        options={{ title: "Theo dõi đơn hàng" }}
       />
       <AccountStack.Screen
         name="Support"
         component={SupportScreen}
-        options={{ title: 'Hỗ trợ' }}
+        options={{ title: "Hỗ trợ" }}
       />
     </AccountStack.Navigator>
   );
@@ -165,13 +173,13 @@ export default function AppNavigator() {
           tabBarInactiveTintColor: Colors.textMuted,
           tabBarStyle: { paddingBottom: 4, height: 56 },
           tabBarIcon: ({ color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap = 'ellipse-outline';
+            let iconName: keyof typeof Ionicons.glyphMap = "ellipse-outline";
 
-            if (route.name === 'Home') iconName = 'home-outline';
-            else if (route.name === 'Products') iconName = 'grid-outline';
-            else if (route.name === 'Cart') iconName = 'cart-outline';
-            else if (route.name === 'Blog') iconName = 'newspaper-outline';
-            else if (route.name === 'Account') iconName = 'person-outline';
+            if (route.name === "Home") iconName = "home-outline";
+            else if (route.name === "Products") iconName = "grid-outline";
+            else if (route.name === "Cart") iconName = "cart-outline";
+            else if (route.name === "Blog") iconName = "newspaper-outline";
+            else if (route.name === "Account") iconName = "person-outline";
 
             return <Ionicons name={iconName} size={size} color={color} />;
           },
@@ -180,29 +188,26 @@ export default function AppNavigator() {
         <Tab.Screen
           name="Home"
           component={HomeStackNavigator}
-          options={{ tabBarLabel: 'Trang chủ' }}
+          options={{ tabBarLabel: "Trang chủ" }}
         />
         <Tab.Screen
           name="Products"
           component={ProductsStackNavigator}
-          options={{ tabBarLabel: 'Sản phẩm' }}
+          options={{ tabBarLabel: "Sản phẩm" }}
         />
         <Tab.Screen
           name="Cart"
           component={CartStackNavigator}
           options={{
-            tabBarLabel: 'Giỏ hàng',
+            tabBarLabel: "Giỏ hàng",
             tabBarBadge: totalItems > 0 ? totalItems : undefined,
           }}
         />
-        <Tab.Screen
-          name="Blog"
-          component={BlogStackNavigator}
-        />
+        <Tab.Screen name="Blog" component={BlogStackNavigator} />
         <Tab.Screen
           name="Account"
           component={AccountStackNavigator}
-          options={{ tabBarLabel: 'Tài khoản' }}
+          options={{ tabBarLabel: "Tài khoản" }}
         />
       </Tab.Navigator>
     </NavigationContainer>
@@ -214,13 +219,21 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.background,
   },
   title: {
     fontSize: Typography.size.lg,
     fontWeight: Typography.weight.semiBold,
     color: Colors.text,
+  },
+  iconButton: {
+    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
