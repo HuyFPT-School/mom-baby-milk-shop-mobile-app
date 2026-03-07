@@ -11,6 +11,7 @@ import BlogViewScreen from "../screens/Blog/BlogPostScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import AccountScreen from "../screens/Auth/AccountScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
+import ProfileScreen from "../screens/Profile/ProfileScreen";
 
 // ── Real screens ─────────────────────────────────────────────────────────────
 import HomeScreen from '../screens/HomeScreen';
@@ -33,7 +34,7 @@ const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
 const OrderTrackingScreen = () => <Placeholder name="Theo dõi đơn hàng" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
 
-// ── Stack navigators (one per tab) ──────────────────────────────────────────
+// ── Stack navigators ───────────────────────────────────────────────────
 
 const HomeStack = createStackNavigator();
 const ProductsStack = createStackNavigator();
@@ -123,8 +124,8 @@ function AccountStackNavigator() {
     <AccountStack.Navigator>
       <AccountStack.Screen
         name="AccountScreen"
-        component={AccountScreen}
-        options={{ title: "Tài khoản" }}
+        component={ProfileScreen}
+        options={{ headerShown: false }}
       />
       <AccountStack.Screen
         name="Login"
@@ -175,13 +176,11 @@ export default function AppNavigator() {
           tabBarStyle: { paddingBottom: 4, height: 56 },
           tabBarIcon: ({ color, size }) => {
             let iconName: keyof typeof Ionicons.glyphMap = "ellipse-outline";
-
             if (route.name === "Home") iconName = "home-outline";
             else if (route.name === "Products") iconName = "grid-outline";
             else if (route.name === "Cart") iconName = "cart-outline";
             else if (route.name === "Blog") iconName = "newspaper-outline";
             else if (route.name === "Account") iconName = "person-outline";
-
             return <Ionicons name={iconName} size={size} color={color} />;
           },
         })}
