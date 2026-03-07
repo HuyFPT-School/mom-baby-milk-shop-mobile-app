@@ -13,7 +13,11 @@ import AccountScreen from "../screens/Auth/AccountScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
 import ProfileScreen from "../screens/Profile/ProfileScreen";
 
-// ── Placeholder screens ────────────────────────────────────────────────
+// ── Real screens ─────────────────────────────────────────────────────────────
+import HomeScreen from '../screens/HomeScreen';
+import CartScreen from '../screens/Cart/CartScreen';
+
+// ── Placeholder screens (to be replaced later) ──────────────────────────────
 
 const Placeholder = ({ name }: { name: string }) => (
   <View style={styles.center}>
@@ -21,10 +25,8 @@ const Placeholder = ({ name }: { name: string }) => (
   </View>
 );
 
-const HomeScreen = () => <Placeholder name="Trang chủ" />;
 const ProductListingScreen = () => <Placeholder name="Sản phẩm" />;
 const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />;
-const CartScreen = () => <Placeholder name="Giỏ hàng" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
 const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
@@ -159,7 +161,7 @@ function AccountStackNavigator() {
   );
 }
 
-// ── Main App Navigator ─────────────────────────────────────────────────
+// ── Main App Navigator ──────────────────────────────────────────────────────
 
 export default function AppNavigator() {
   const { totalItems } = useCart();
@@ -212,7 +214,7 @@ export default function AppNavigator() {
   );
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────
+// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   center: {

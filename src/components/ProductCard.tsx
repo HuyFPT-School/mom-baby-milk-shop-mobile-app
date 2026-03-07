@@ -1,26 +1,19 @@
 import React, { useCallback } from 'react';
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, Dimensions,
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography, Shadow, ITEM_HEIGHT } from '../constants/theme';
+import { formatPrice, getProductImage, getDiscountPercent } from '../utils/formatters';
+import type { Product } from '../types';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.base * 3) / 2;
-
-export interface Product {
-  _id: string;
-  name: string;
-  price: number;
-  discountPrice?: number;
-  images?: string[];
-  image?: string;
-  brand?: { name: string } | string;
-  category?: { name: string } | string;
-  stock?: number;
-  rating?: number;
-  isFeatured?: boolean;
-}
 
 interface ProductCardProps {
   item: Product;
@@ -28,17 +21,23 @@ interface ProductCardProps {
   onAddToCart?: (product: Product) => void;
 }
 
-function formatPrice(price: number) {
-  return price.toLocaleString('vi-VN') + '₫';
-}
-
 const ProductCard = React.memo(({ item, onPress, onAddToCart }: ProductCardProps) => {
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const handleAdd = useCallback(() => onAddToCart?.(item), [item, onAddToCart]);
 
-  const imageUri = item.images?.[0] || item.image || 'https://placehold.co/300x300/FFF0F7/E91E8C?text=Sữa';
-  const brandName = typeof item.brand === 'object' ? item.brand?.name : item.brand;
-  const hasDiscount = item.discountPrice && item.discountPrice < item.price;
+  const imageUri = getProductImage(item);
+  const brandName =
+    typeof item.brand === 'object' ? item.brand?.name : item.brand;
+  const discount = getDiscountPercent(item.price, item.sale_price);
+  const effectivePrice = item.sale_price ?? item.price;
+
+  const isOutOfStock =
+    item.quantity === 0 && !item.expectedRestockDate;
+  const isComingSoon =
+    !!item.expectedRestockDate &&
+    new Date(item.expectedRestockDate) > new Date();
+  const isPreOrder =
+    (isOutOfStock || isComingSoon) && item.allowPreOrder !== false;
 
   return (
     <TouchableOpacity
@@ -48,38 +47,83 @@ const ProductCard = React.memo(({ item, onPress, onAddToCart }: ProductCardProps
       accessibilityLabel={`Sản phẩm ${item.name}`}
       accessibilityRole="button"
     >
+      {/* ── Image ── */}
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: imageUri }}
           style={styles.image}
           resizeMode="contain"
         />
-        {hasDiscount && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>
-              -{Math.round(((item.price - item.discountPrice!) / item.price) * 100)}%
-            </Text>
+
+        {/* Badges */}
+        {isOutOfStock && (
+          <View style={[styles.badge, styles.badgePreOrder]}>
+            <Ionicons name="cube-outline" size={10} color={Colors.white} />
+            <Text style={styles.badgeText}>ĐẶT TRƯỚC</Text>
+          </View>
+        )}
+        {isComingSoon && (
+          <View style={[styles.badge, styles.badgeComingSoon]}>
+            <Ionicons name="calendar-outline" size={10} color={Colors.white} />
+            <Text style={styles.badgeText}>SẮP RA MẮT</Text>
+          </View>
+        )}
+        {discount > 0 && !isPreOrder && (
+          <View style={[styles.badge, styles.badgeDiscount]}>
+            <Text style={styles.badgeText}>-{discount}%</Text>
+          </View>
+        )}
+
+        {/* Out-of-stock overlay */}
+        {item.quantity <= 0 && !isPreOrder && (
+          <View style={styles.soldOutOverlay}>
+            <Text style={styles.soldOutText}>Hết hàng</Text>
           </View>
         )}
       </View>
+
+      {/* ── Info ── */}
       <View style={styles.info}>
-        {brandName ? <Text style={styles.brand} numberOfLines={1}>{brandName}</Text> : null}
-        <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
+        {brandName ? (
+          <Text style={styles.brand} numberOfLines={1}>
+            {brandName}
+          </Text>
+        ) : null}
+
+        <Text style={styles.name} numberOfLines={2}>
+          {item.name}
+        </Text>
+
         <View style={styles.priceRow}>
           <View>
-            <Text style={styles.price}>{formatPrice(hasDiscount ? item.discountPrice! : item.price)}</Text>
-            {hasDiscount && (
-              <Text style={styles.originalPrice}>{formatPrice(item.price)}</Text>
+            <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
+            {discount > 0 && (
+              <Text style={styles.originalPrice}>
+                {formatPrice(item.price)}
+              </Text>
             )}
           </View>
+
           {onAddToCart && (
             <TouchableOpacity
-              style={styles.addBtn}
+              style={[
+                styles.addBtn,
+                isOutOfStock && styles.addBtnPreOrder,
+                isComingSoon && styles.addBtnComingSoon,
+              ]}
               onPress={handleAdd}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel={`Thêm ${item.name} vào giỏ`}
+              accessibilityLabel={
+                isPreOrder
+                  ? `Đặt trước ${item.name}`
+                  : `Thêm ${item.name} vào giỏ`
+              }
             >
-              <Ionicons name="add" size={18} color={Colors.white} />
+              <Ionicons
+                name={isPreOrder ? 'time-outline' : 'add'}
+                size={18}
+                color={Colors.white}
+              />
             </TouchableOpacity>
           )}
         </View>
@@ -89,8 +133,11 @@ const ProductCard = React.memo(({ item, onPress, onAddToCart }: ProductCardProps
 });
 
 ProductCard.displayName = 'ProductCard';
-
 export default ProductCard;
+export { CARD_WIDTH };
+export type { ProductCardProps };
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   card: {
@@ -112,20 +159,53 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  discountBadge: {
+
+  // Badges
+  badge: {
     position: 'absolute',
     top: Spacing.sm,
     left: Spacing.sm,
-    backgroundColor: Colors.error,
     borderRadius: Radius.sm,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
-  discountText: {
+  badgeDiscount: {
+    backgroundColor: Colors.error,
+  },
+  badgePreOrder: {
+    backgroundColor: '#F97316',
+  },
+  badgeComingSoon: {
+    backgroundColor: '#8B5CF6',
+  },
+  badgeText: {
     color: Colors.white,
-    fontSize: Typography.size.xs,
+    fontSize: Typography.size.xs - 1,
     fontWeight: Typography.weight.bold,
   },
+
+  // Sold-out overlay
+  soldOutOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soldOutText: {
+    backgroundColor: Colors.black,
+    color: Colors.white,
+    fontSize: Typography.size.sm,
+    fontWeight: Typography.weight.medium,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
+
+  // Info
   info: {
     padding: Spacing.sm,
     flex: 1,
@@ -159,6 +239,8 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textDecorationLine: 'line-through',
   },
+
+  // Add-to-cart button
   addBtn: {
     backgroundColor: Colors.primary,
     width: 28,
@@ -167,6 +249,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  addBtnPreOrder: {
+    backgroundColor: '#F97316',
+  },
+  addBtnComingSoon: {
+    backgroundColor: '#8B5CF6',
+  },
 });
-
-export { CARD_WIDTH };
