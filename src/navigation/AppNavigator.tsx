@@ -1,12 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography } from '../constants/theme';
-import { useCart } from '../context/CartContext';
-import ProfileScreen from '../screens/Profile/ProfileScreen';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createStackNavigator } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors, Typography } from "../constants/theme";
+import { useCart } from "../context/CartContext";
+import BlogListScreen from "../screens/Blog/BlogListScreen";
+import BlogViewScreen from "../screens/Blog/BlogPostScreen";
+import LoginScreen from "../screens/Auth/LoginScreen";
+import AccountScreen from "../screens/Auth/AccountScreen";
+import RegisterScreen from "../screens/Auth/RegisterScreen";
 
 // ── Placeholder screens ────────────────────────────────────────────────
 
@@ -70,8 +74,24 @@ function CartStackNavigator() {
 function BlogStackNavigator() {
   return (
     <BlogStack.Navigator>
-      <BlogStack.Screen name="BlogList" component={BlogListScreen} options={{ title: 'Blog' }} />
-      <BlogStack.Screen name="BlogPost" component={BlogPostScreen} options={{ title: 'Bài viết' }} />
+      <BlogStack.Screen
+        name="BlogList"
+        component={BlogListScreen}
+        options={{ title: "Blog" }}
+      />
+      <BlogStack.Screen
+        name="BlogPost"
+        component={BlogViewScreen}
+        options={{
+          title: "Bài viết",
+          headerShown: true,
+          headerRight: () => (
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="ellipsis-horizontal" size={24} color="#333" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
     </BlogStack.Navigator>
   );
 }
@@ -84,6 +104,38 @@ function AccountStackNavigator() {
         name="AccountScreen"
         component={ProfileScreen}
         options={{ headerShown: false }}
+        component={AccountScreen}
+        options={{ title: "Tài khoản" }}
+      />
+      <AccountStack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{ title: "Đăng nhập" }}
+      />
+      <AccountStack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{ title: "Đăng ký" }}
+      />
+      <AccountStack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ title: "Quên mật khẩu" }}
+      />
+      <AccountStack.Screen
+        name="VerifyEmail"
+        component={VerifyEmailScreen}
+        options={{ title: "Xác thực email" }}
+      />
+      <AccountStack.Screen
+        name="OrderTracking"
+        component={OrderTrackingScreen}
+        options={{ title: "Theo dõi đơn hàng" }}
+      />
+      <AccountStack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{ title: "Hỗ trợ" }}
       />
       <AccountStack.Screen name="Login" component={LoginScreen} options={{ title: 'Đăng nhập' }} />
       <AccountStack.Screen name="Register" component={RegisterScreen} options={{ title: 'Đăng ký' }} />
@@ -125,7 +177,7 @@ export default function AppNavigator() {
           name="Cart"
           component={CartStackNavigator}
           options={{
-            tabBarLabel: 'Giỏ hàng',
+            tabBarLabel: "Giỏ hàng",
             tabBarBadge: totalItems > 0 ? totalItems : undefined,
           }}
         />
@@ -141,13 +193,21 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.background,
   },
   title: {
     fontSize: Typography.size.lg,
     fontWeight: Typography.weight.semiBold,
     color: Colors.text,
+  },
+  iconButton: {
+    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
