@@ -12,8 +12,11 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import AccountScreen from "../screens/Auth/AccountScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
 
-// ── Placeholder screens ────────────────────────────────────────────────
-// Replace each with your real screen component later
+// ── Real screens ─────────────────────────────────────────────────────────────
+import HomeScreen from '../screens/HomeScreen';
+import CartScreen from '../screens/Cart/CartScreen';
+
+// ── Placeholder screens (to be replaced later) ──────────────────────────────
 
 const Placeholder = ({ name }: { name: string }) => (
   <View style={styles.center}>
@@ -21,10 +24,8 @@ const Placeholder = ({ name }: { name: string }) => (
   </View>
 );
 
-const HomeScreen = () => <Placeholder name="Trang chủ" />;
 const ProductListingScreen = () => <Placeholder name="Sản phẩm" />;
 const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />;
-const CartScreen = () => <Placeholder name="Giỏ hàng" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
 const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
@@ -32,7 +33,7 @@ const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
 const OrderTrackingScreen = () => <Placeholder name="Theo dõi đơn hàng" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
 
-// ── Stack navigators (one per tab) ─────────────────────────────────────
+// ── Stack navigators (one per tab) ──────────────────────────────────────────
 
 const HomeStack = createStackNavigator();
 const ProductsStack = createStackNavigator();
@@ -159,7 +160,7 @@ function AccountStackNavigator() {
   );
 }
 
-// ── Main App Navigator ─────────────────────────────────────────────────
+// ── Main App Navigator ──────────────────────────────────────────────────────
 
 export default function AppNavigator() {
   const { totalItems } = useCart();
@@ -214,7 +215,7 @@ export default function AppNavigator() {
   );
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────
+// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   center: {
