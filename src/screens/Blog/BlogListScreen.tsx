@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,72 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { blogApi } from "../../services/api";
+import type { Blog } from "../../types";
 
-const DATA = [
-  {
-    id: "1",
-    author: "BuzzFeed",
-    authorIcon: "https://cdn-icons-png.flaticon.com/512/732/732204.png", // Placeholder
-    time: "11h",
-    title:
-      "Florence Pugh Wore An, Um, Interesting Dress To The Oscars, And Everyone's Making The Same Joke",
-    reads: "503 reads",
-    image:
-      "https://images.unsplash.com/photo-1616091093714-c64882e9ab55?auto=format&fit=crop&w=800",
-    featured: true,
-  },
-  {
-    id: "2",
-    author: "BGR",
-    authorIcon: "https://cdn-icons-png.flaticon.com/512/732/732204.png", // Placeholder
-    time: "9h",
-    title:
-      "Florence Pugh Wore An, Um, Interesting Dress To The Oscars, And Everyone's Making The Same Joke Florence Pugh Wore An, Um, Interesting Dress To The Oscars, And Everyone's Making The Same Joke",
-    reads: "1286 reads",
-    image:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400",
-    featured: false,
-  },
-  {
-    id: "3",
-    author: "BGR",
-    authorIcon: "https://cdn-icons-png.flaticon.com/512/732/732204.png", // Placeholder
-    time: "9h",
-    title:
-      "Two of the latest Netflix series with perfect 100% scores on Rotten Tomatoes",
-    reads: "1286 reads",
-    image:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400",
-    featured: false,
-  },
-];
+interface BlogListItem extends Blog {
+  authorIcon: string;
+  time: string;
+  featured: boolean;
+}
 
 export default function BlogListScreen() {
   const navigation = useNavigation<any>();
+  const [blogs, setBlogs] = useState<BlogListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const renderItem = ({ item }: { item: (typeof DATA)[0] }) => {
+  useEffect(() => {
+    fetchBlogs();
+  }, []);
+
+  const fetchBlogs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await blogApi.getAll();
+      const data = response.data.data || response.data;
+      
+      // Transform API data to match UI requirements
+      const transformedBlogs: BlogListItem[] = data.map((blog: Blog, index: number) => ({
+        ...blog,
+        id: blog._id,
+        authorIcon: "https://cdn-icons-png.flaticon.com/512/732/732204.png",
+        time: formatRelativeTime(blog.createdAt),
+        featured: index === 0, // First blog is featured
+      }));
+      
+      setBlogs(transformedBlogs);
+    } catch (err: any) {
+      console.error("Error fetching blogs:", err);
+      setError(err.message || "Failed to load blogs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${diffInHours}h`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d`;
+    return date.toLocaleDateString("vi-VN");
+  };
+
+  const renderItem = ({ item }: { item: BlogListItem }) => {
     if (item.featured) {
       return (
         <View>
           <TouchableOpacity
             style={styles.featuredContainer}
-            onPress={() => navigation.navigate("BlogPost", { item })}
+            onPress={() => navigation.navigate("BlogPost", { blogId: item._id })}
           >
             <Image source={{ uri: item.image }} style={styles.featuredImage} />
             
@@ -80,7 +94,7 @@ export default function BlogListScreen() {
       <View>
         <TouchableOpacity
           style={styles.listItem}
-          onPress={() => navigation.navigate("BlogPost", { item })}
+          onPress={() => navigation.navigate("BlogPost", { blogId: item._id })}
         >
           <View style={styles.listContent}>
             <Text style={styles.listTitle} numberOfLines={3}>
@@ -102,11 +116,30 @@ export default function BlogListScreen() {
     );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#FF6B9D" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchBlogs}>
+          <Text style={styles.retryText}>Thử lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <FlatList
-        data={DATA}
-        keyExtractor={(item) => item.id}
+        data={blogs}
+        keyExtractor={(item) => item._id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
@@ -121,6 +154,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
+    marginBottom: 16,
+    textAlign: "center",
+    paddingHorizontal: 32,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: "#FF6B9D",
+    borderRadius: 8,
+  },
+  retryText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
   },
   list: {
     padding: 16,
