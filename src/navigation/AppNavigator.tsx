@@ -11,6 +11,9 @@ import BlogViewScreen from "../screens/Blog/BlogPostScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import AccountScreen from "../screens/Auth/AccountScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
+import VerifyEmailScreen from "../screens/Auth/VerifyEmailScreen";
+import ForgotPasswordScreen from "../screens/Auth/ForgotPasswordScreen";
+import ResetPasswordScreen from "../screens/Auth/ResetPasswordScreen";
 import ProfileScreen from "../screens/Profile/ProfileScreen";
 
 // ── Real screens ─────────────────────────────────────────────────────────────
@@ -30,8 +33,6 @@ const Placeholder = ({ name }: { name: string }) => (
 const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
-const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
-const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
 
 // ── Stack navigators ───────────────────────────────────────────────────
@@ -146,6 +147,11 @@ function AccountStackNavigator() {
         name="VerifyEmail"
         component={VerifyEmailScreen}
         options={{ title: "Xác thực email" }}
+      />
+      <AccountStack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{ title: "Đặt lại mật khẩu" }}
       />
       <AccountStack.Screen
         name="OrderTracking"

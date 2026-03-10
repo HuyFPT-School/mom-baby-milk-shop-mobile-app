@@ -78,3 +78,17 @@ export interface HierarchicalCategory {
     brands: { _id: string; name: string }[];
   }[];
 }
+
+// ─── Blog ────────────────────────────────────────────────────────────────────
+
+export interface Blog {
+  _id: string;
+  title: string;
+  content: string; // HTML content
+  author: string;
+  tags: string[];
+  recommended_products: Product[] | string[];
+  image: string;
+  createdAt: string;
+  updatedAt: string;
+}

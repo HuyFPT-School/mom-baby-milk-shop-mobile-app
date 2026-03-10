@@ -8,17 +8,87 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Colors } from "../../constants/theme";
+import { authApi } from "../../services/api";
 
 export default function RegisterScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
+
+  const handleRegister = async () => {
+    // Validate input
+    if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Lỗi", "Email không hợp lệ");
+      return;
+    }
+
+    // Password validation (backend requires 8-30 chars, uppercase, lowercase, digit)
+    if (password.length < 8 || password.length > 30) {
+      Alert.alert("Lỗi", "Mật khẩu phải có từ 8-30 ký tự");
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,30}$/;
+    if (!passwordRegex.test(password)) {
+      Alert.alert(
+        "Lỗi", 
+        "Mật khẩu phải chứa ít nhất một chữ hoa, một chữ thường và một chữ số"
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Lỗi", "Mật khẩu xác nhận không khớp");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Register user - backend will send OTP to email
+      await authApi.register({
+        fullname: fullName.trim(),
+        email: email.trim(),
+        password: password,
+        role: "User",
+      });
+
+      // Navigate to email verification screen
+      (navigation as any).navigate("VerifyEmail", { 
+        email: email.trim(),
+        fromRegistration: true 
+      });
+      
+      Alert.alert(
+        "Kiểm tra email", 
+        "Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra và xác thực tài khoản."
+      );
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Đăng ký thất bại. Vui lòng thử lại.";
+      Alert.alert("Đăng ký thất bại", message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,8 +157,16 @@ export default function RegisterScreen() {
               />
             </View>
 
-            <TouchableOpacity style={styles.continueButton}>
-              <Text style={styles.continueButtonText}>Đăng ký</Text>
+            <TouchableOpacity 
+              style={[styles.continueButton, loading && styles.buttonDisabled]}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.continueButtonText}>Đăng ký</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -174,6 +252,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   loginRedirect: {
     marginTop: 8,

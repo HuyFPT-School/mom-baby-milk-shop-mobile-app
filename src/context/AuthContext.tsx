@@ -19,6 +19,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   updateUser: (user: User) => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -55,22 +56,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await authApi.login(email, password);
     const { accessToken, refreshToken, user: userData } = data;
-    await Promise.all([
+    
+    // Map API response to User interface (id -> _id)
+    const mappedUser = {
+      _id: userData.id || userData._id,
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone,
+      avatar: userData.avatar,
+      role: userData.role,
+    };
+    
+    // Save tokens and user data
+    const savePromises = [
       SecureStore.setItemAsync('accessToken', accessToken),
-      SecureStore.setItemAsync('refreshToken', refreshToken),
-      SecureStore.setItemAsync('user', JSON.stringify(userData)),
-    ]);
+      SecureStore.setItemAsync('user', JSON.stringify(mappedUser)),
+    ];
+    
+    // Only save refreshToken if it exists
+    if (refreshToken) {
+      savePromises.push(SecureStore.setItemAsync('refreshToken', refreshToken));
+    }
+    
+    await Promise.all(savePromises);
     setToken(accessToken);
-    setUser(userData);
+    setUser(mappedUser);
   }, []);
 
   const logout = useCallback(async () => {
     try { await authApi.logout(); } catch { /* fire and forget */ }
-    await Promise.all([
+    
+    // Delete saved auth data
+    const deletePromises = [
       SecureStore.deleteItemAsync('accessToken'),
-      SecureStore.deleteItemAsync('refreshToken'),
       SecureStore.deleteItemAsync('user'),
-    ]);
+    ];
+    
+    // Also delete refreshToken if it was saved
+    try {
+      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      if (refreshToken) {
+        deletePromises.push(SecureStore.deleteItemAsync('refreshToken'));
+      }
+    } catch { /* ignore */ }
+    
+    await Promise.all(deletePromises);
     setToken(null);
     setUser(null);
   }, []);
@@ -78,6 +108,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUser = useCallback((updated: User) => {
     setUser(updated);
     SecureStore.setItemAsync('user', JSON.stringify(updated));
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await authApi.changePassword({ currentPassword, newPassword });
   }, []);
 
   return (
@@ -89,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       isAuthenticated: !!token,
       updateUser,
+      changePassword,
     }}>
       {children}
     </AuthContext.Provider>

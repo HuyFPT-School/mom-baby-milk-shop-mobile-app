@@ -7,16 +7,98 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AntDesign, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { Colors, Typography } from "../../constants/theme";
+import { useAuth } from "../../context/AuthContext";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [generalError, setGeneralError] = useState("");
   const navigation = useNavigation();
+  const { login } = useAuth();
+
+  const validateEmail = (value: string) => {
+    setEmail(value);
+    setEmailError("");
+    setGeneralError("");
+    
+    if (value && !value.trim()) {
+      setEmailError("Email không được để trống");
+    } else if (value) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        setEmailError("Email không hợp lệ");
+      }
+    }
+  };
+
+  const validatePassword = (value: string) => {
+    setPassword(value);
+    setPasswordError("");
+    setGeneralError("");
+    
+    if (value && value.length < 6) {
+      setPasswordError("Mật khẩu phải có ít nhất 6 ký tự");
+    }
+  };
+
+  const handleLogin = async () => {
+    // Clear previous errors
+    setEmailError("");
+    setPasswordError("");
+    setGeneralError("");
+
+    let hasError = false;
+
+    // Validate input
+    if (!email.trim()) {
+      setEmailError("Vui lòng nhập email");
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        setEmailError("Email không hợp lệ");
+        hasError = true;
+      }
+    }
+
+    if (!password.trim()) {
+      setPasswordError("Vui lòng nhập mật khẩu");
+      hasError = true;
+    } else if (password.length < 6) {
+      setPasswordError("Mật khẩu phải có ít nhất 6 ký tự");
+      hasError = true;
+    }
+
+    if (hasError) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await login(email.trim(), password);
+      // Navigate back to account screen after successful login
+      (navigation as any).goBack();
+    } catch (error: any) {
+      console.error("Login error:", error);
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
+      setGeneralError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -31,35 +113,69 @@ export default function LoginScreen() {
             bằng một trong các tùy chọn dưới đây.
           </Text>
 
+          {generalError ? (
+            <View style={styles.generalErrorContainer}>
+              <MaterialCommunityIcons name="alert-circle" size={20} color="#d32f2f" />
+              <Text style={styles.generalErrorText}>{generalError}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.inputContainer}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, emailError && styles.inputError]}
               placeholder="Địa chỉ email của bạn"
               placeholderTextColor="#999"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={validateEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {emailError ? (
+              <View style={styles.errorContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={14} color="#d32f2f" />
+                <Text style={styles.errorText}>{emailError}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, passwordError && styles.inputError]}
               placeholder="Mật khẩu"
               placeholderTextColor="#999"
               value={password}
               secureTextEntry
-              onChangeText={setPassword}
+              onChangeText={validatePassword}
               keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {passwordError ? (
+              <View style={styles.errorContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={14} color="#d32f2f" />
+                <Text style={styles.errorText}>{passwordError}</Text>
+              </View>
+            ) : null}
           </View>
 
-          <TouchableOpacity style={styles.continueButton}>
-            <Text style={styles.continueButtonText}>Đăng nhập</Text>
+          <TouchableOpacity 
+            style={[styles.continueButton, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.continueButtonText}>Đăng nhập</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => (navigation as any).navigate("ForgotPassword")}
+            style={styles.forgotPasswordButton}
+          >
+            <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -126,18 +242,60 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
   },
+  inputError: {
+    borderColor: "#d32f2f",
+    borderWidth: 1.5,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+  errorText: {
+    color: "#d32f2f",
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  generalErrorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffebee",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    width: "100%",
+  },
+  generalErrorText: {
+    color: "#d32f2f",
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
   continueButton: {
     backgroundColor: Colors.primary,
     width: "100%",
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 16,
   },
   continueButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  forgotPasswordButton: {
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   registerRedirect: {
     marginTop: 8,
