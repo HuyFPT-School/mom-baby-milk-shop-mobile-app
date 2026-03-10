@@ -14,8 +14,10 @@ import RegisterScreen from "../screens/Auth/RegisterScreen";
 import ProfileScreen from "../screens/Profile/ProfileScreen";
 
 // ── Real screens ─────────────────────────────────────────────────────────────
-import HomeScreen from '../screens/HomeScreen';
-import CartScreen from '../screens/Cart/CartScreen';
+import HomeScreen from "../screens/HomeScreen";
+import CartScreen from "../screens/Cart/CartScreen";
+import ProductListScreen from "../screens/Products/ProductListScreen";
+import OrderTrackingScreen from "../screens/Orders/OrderTrackingScreen";
 
 // ── Placeholder screens (to be replaced later) ──────────────────────────────
 
@@ -25,13 +27,11 @@ const Placeholder = ({ name }: { name: string }) => (
   </View>
 );
 
-const ProductListingScreen = () => <Placeholder name="Sản phẩm" />;
 const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
 const ForgotPasswordScreen = () => <Placeholder name="Quên mật khẩu" />;
 const VerifyEmailScreen = () => <Placeholder name="Xác thực email" />;
-const OrderTrackingScreen = () => <Placeholder name="Theo dõi đơn hàng" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
 
 // ── Stack navigators ───────────────────────────────────────────────────
@@ -60,8 +60,8 @@ function ProductsStackNavigator() {
     <ProductsStack.Navigator>
       <ProductsStack.Screen
         name="ProductListing"
-        component={ProductListingScreen}
-        options={{ title: "Sản phẩm" }}
+        component={ProductListScreen}
+        options={{ headerShown: false }}
       />
       <ProductsStack.Screen
         name="ProductDetail"
@@ -150,7 +150,7 @@ function AccountStackNavigator() {
       <AccountStack.Screen
         name="OrderTracking"
         component={OrderTrackingScreen}
-        options={{ title: "Theo dõi đơn hàng" }}
+        options={{ headerShown: false }}
       />
       <AccountStack.Screen
         name="Support"
