@@ -8,6 +8,7 @@ import type { Product, Brand, Category } from '../types';
 // iOS simulator: localhost works directly
 // Fallback: Vercel deployment
 
+const USE_LOCAL = process.env.EXPO_PUBLIC_USE_LOCAL === 'true';
 const LOCAL_PORT = process.env.EXPO_PUBLIC_LOCAL_PORT ?? '3000';
 const FALLBACK_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'https://mom-baby-milk-server.vercel.app';
@@ -18,12 +19,13 @@ const LOCAL_URL = Platform.select({
   default: `http://localhost:${LOCAL_PORT}`,
 });
 
-// Try local first, fallback to Vercel
-const BASE_URL = LOCAL_URL;
+// When USE_LOCAL=false, connect directly to Vercel (no timeout waste)
+const BASE_URL = USE_LOCAL ? LOCAL_URL! : FALLBACK_URL;
 
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10_000,
+  // Short timeout when local so fallback kicks in fast; standard for Vercel
+  timeout: USE_LOCAL ? 4_000 : 10_000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -47,12 +49,13 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    // If local server unreachable, retry with Vercel fallback
+    // If local server unreachable, retry with Vercel fallback (only when USE_LOCAL)
     const isNetworkError =
       !error.response || error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK';
-    if (isNetworkError && !original._fallbackRetried) {
+    if (USE_LOCAL && isNetworkError && !original._fallbackRetried) {
       original._fallbackRetried = true;
       original.baseURL = FALLBACK_URL;
+      original.timeout = 10_000;
       console.log('⚡ Retrying with fallback URL:', FALLBACK_URL + original.url);
       return axios(original);
     }
