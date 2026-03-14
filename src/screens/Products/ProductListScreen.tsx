@@ -25,6 +25,7 @@ import { getProductImage } from "../../utils/formatters";
 import ProductCard from "../../components/ProductCard";
 import { toast } from "../../components/Toast";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
 import PreOrderModal from "../../components/PreOrderModal";
 import type { Product, Category, Brand } from "../../types";
 
@@ -40,6 +41,7 @@ export default function ProductListScreen({
   route,
 }: ProductListScreenProps) {
   const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -214,6 +216,11 @@ export default function ProductListScreen({
 
   // ── Handle Add to Cart ──
   const handleAddToCart = (product: Product) => {
+    if (!isAuthenticated) {
+      toast.info("Vui lòng đăng nhập", "Bạn cần đăng nhập để thêm vào giỏ hàng");
+      return;
+    }
+
     const isOutOfStock = product.quantity === 0 && !product.expectedRestockDate;
     const isComingSoon =
       !!product.expectedRestockDate &&
@@ -227,7 +234,7 @@ export default function ProductListScreen({
     }
 
     if (product.quantity > 0) {
-      addToCart({
+      const added = addToCart({
         id: product._id,
         name: product.name,
         price: product.price,
@@ -236,7 +243,9 @@ export default function ProductListScreen({
         quantity: 1,
         availableStock: product.quantity,
       });
-      toast.success("Đã thêm vào giỏ hàng", product.name);
+      if (added) {
+        toast.success("Đã thêm vào giỏ hàng", product.name);
+      }
     } else {
       toast.error("Hết hàng", "Sản phẩm tạm thời hết hàng");
     }
@@ -244,7 +253,13 @@ export default function ProductListScreen({
 
   // ── Handle Pre-Order Confirm ──
   const handlePreOrderConfirm = (product: Product, options: any) => {
-    addToCart({
+    if (!isAuthenticated) {
+      toast.info("Vui lòng đăng nhập", "Bạn cần đăng nhập để đặt trước");
+      setPreOrderProduct(null);
+      return;
+    }
+
+    const added = addToCart({
       id: product._id,
       name: product.name,
       price: product.price,
@@ -257,6 +272,8 @@ export default function ProductListScreen({
       paymentOption: options.paymentOption,
       releaseDate: options.releaseDate,
     });
+    if (!added) return;
+
     toast.success("Đã đặt trước", `${options.quantity}x ${product.name}`);
     setPreOrderProduct(null);
   };

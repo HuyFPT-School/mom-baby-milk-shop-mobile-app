@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CartItem, PreOrderOptions, PaymentOption } from '../types';
+import { useAuth } from './AuthContext';
 
 // ─── State & Actions ─────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ interface CartContextType {
   totalPayNow: number;
   regularItems: CartItem[];
   preOrderItems: CartItem[];
-  addToCart: (product: Record<string, unknown>, preOrder?: PreOrderOptions) => void;
+  addToCart: (product: Record<string, unknown>, preOrder?: PreOrderOptions) => boolean;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   updatePaymentOption: (id: string, paymentOption: PaymentOption) => void;
@@ -146,6 +147,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [state, dispatch] = useReducer(cartReducer, {
     items: [],
     hydrated: false,
@@ -183,9 +185,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
   // ── Dispatchers ──
 
   const addToCart = useCallback(
-    (product: Record<string, unknown>, preOrder?: PreOrderOptions) =>
-      dispatch({ type: 'ADD', product, preOrder }),
-    [],
+    (product: Record<string, unknown>, preOrder?: PreOrderOptions) => {
+      if (!isAuthenticated) return false;
+      dispatch({ type: 'ADD', product, preOrder });
+      return true;
+    },
+    [isAuthenticated],
   );
 
   const removeFromCart = useCallback(

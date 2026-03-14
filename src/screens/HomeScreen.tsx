@@ -22,6 +22,7 @@ import BrandCard from '../components/BrandCard';
 import CategoryList from '../components/CategoryList';
 import PreOrderModal from '../components/PreOrderModal';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import type { Product, Brand, HierarchicalCategory } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -93,6 +94,7 @@ const BANNERS: BannerItem[] = [
 
 export default function HomeScreen() {
     const { addToCart } = useCart();
+    const { isAuthenticated } = useAuth();
 
     // Data
     const [brands, setBrands] = useState<Brand[]>([]);
@@ -185,6 +187,11 @@ export default function HomeScreen() {
 
     const handleAddToCart = useCallback(
         (product: Product) => {
+            if (!isAuthenticated) {
+                toast.info('Vui lòng đăng nhập', 'Bạn cần đăng nhập để thêm vào giỏ hàng');
+                return;
+            }
+
             const isPreOrder =
                 product.quantity === 0 ||
                 (!!product.expectedRestockDate &&
@@ -193,15 +200,17 @@ export default function HomeScreen() {
             if (isPreOrder && product.allowPreOrder !== false) {
                 setPreOrderProduct(product);
             } else {
-                addToCart({
+                const added = addToCart({
                     ...product,
                     id: product._id,
                     image_url: getProductImage(product),
                 });
-                toast.success('Đã thêm vào giỏ hàng', product.name);
+                if (added) {
+                    toast.success('Đã thêm vào giỏ hàng', product.name);
+                }
             }
         },
-        [addToCart],
+        [addToCart, isAuthenticated],
     );
 
     const handlePreOrderConfirm = useCallback(
@@ -211,7 +220,13 @@ export default function HomeScreen() {
             preOrderType: 'OUT_OF_STOCK' | 'COMING_SOON';
             paymentOption: 'PAY_NOW';
         }) => {
-            addToCart(
+            if (!isAuthenticated) {
+                toast.info('Vui lòng đăng nhập', 'Bạn cần đăng nhập để đặt trước');
+                setPreOrderProduct(null);
+                return;
+            }
+
+            const added = addToCart(
                 { ...data.product, id: data.product._id, image_url: getProductImage(data.product) },
                 {
                     quantity: data.quantity,
@@ -220,6 +235,8 @@ export default function HomeScreen() {
                     releaseDate: data.product.expectedRestockDate,
                 },
             );
+            if (!added) return;
+
             setPreOrderProduct(null);
             if (data.preOrderType === 'OUT_OF_STOCK') {
                 toast.success('Đặt trước thành công', data.product.name);
@@ -227,7 +244,7 @@ export default function HomeScreen() {
                 toast.info('Đăng ký đặt trước thành công', data.product.name);
             }
         },
-        [addToCart],
+        [addToCart, isAuthenticated],
     );
 
     // ── Render helpers ──
@@ -320,25 +337,6 @@ export default function HomeScreen() {
                     />
                 </View>
 
-                {/* ── Features ── */}
-                <View style={styles.featuresSection}>
-                    <View style={styles.featuresGrid}>
-                        {FEATURES.map((f) => (
-                            <View key={f.title} style={styles.featureItem}>
-                                <View style={styles.featureIcon}>
-                                    <Ionicons
-                                        name={f.icon}
-                                        size={24}
-                                        color={Colors.primary}
-                                    />
-                                </View>
-                                <Text style={styles.featureTitle}>{f.title}</Text>
-                                <Text style={styles.featureDesc}>{f.desc}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
                 {/* ── Brands ── */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -387,25 +385,24 @@ export default function HomeScreen() {
                     )}
                 </View>
 
-                {/* ── CTA Banner ── */}
-                <LinearGradient
-                    colors={[Colors.primary, Colors.primaryDark]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.ctaBanner}
-                >
-                    <Text style={styles.ctaTitle}>
-                        Đăng ký thành viên ngay hôm nay!
-                    </Text>
-                    <Text style={styles.ctaDesc}>
-                        Nhận voucher giảm 10% cho đơn hàng đầu tiên. Tích điểm đổi quà hấp
-                        dẫn và nhiều ưu đãi độc quyền.
-                    </Text>
-                    <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85}>
-                        <Text style={styles.ctaBtnText}>Đăng ký ngay</Text>
-                        <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
-                    </TouchableOpacity>
-                </LinearGradient>
+                {/* ── Features (moved to bottom) ── */}
+                <View style={styles.featuresSection}>
+                    <View style={styles.featuresGrid}>
+                        {FEATURES.map((f) => (
+                            <View key={f.title} style={styles.featureItem}>
+                                <View style={styles.featureIcon}>
+                                    <Ionicons
+                                        name={f.icon}
+                                        size={24}
+                                        color={Colors.primary}
+                                    />
+                                </View>
+                                <Text style={styles.featureTitle}>{f.title}</Text>
+                                <Text style={styles.featureDesc}>{f.desc}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
 
                 <View style={{ height: 24 }} />
             </ScrollView>
