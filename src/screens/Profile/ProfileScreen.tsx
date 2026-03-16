@@ -38,6 +38,17 @@ type Tab =
   | "vouchers";
 type Gender = "male" | "female" | "other" | null;
 
+const formatDateOfBirth = (value?: string) => {
+  if (!value) return "";
+  if (value.includes("/")) return value;
+
+  const isoDate = value.slice(0, 10);
+  const [year, month, day] = isoDate.split("-");
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year}`;
+};
+
 // ─── Input Field ──────────────────────────────────────────────────────────────
 const InputField = ({
   label,
@@ -419,6 +430,7 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState("");
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState<Gender>(null);
+  const [address, setAddress] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -430,6 +442,9 @@ export default function ProfileScreen() {
     if (user) {
       setName(user.name || "");
       setPhone(user.phone || "");
+      setGender(user.gender || null);
+      setDob(formatDateOfBirth(user.dateOfBirth));
+      setAddress(user.address || "");
     }
   }, [user]);
 
@@ -482,21 +497,17 @@ export default function ProfileScreen() {
 
     try {
       await changePassword(oldPassword, newPassword);
-      Alert.alert(
-        "Thành công",
-        "Mật khẩu đã được thay đổi thành công",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Clear form
-              setOldPassword("");
-              setNewPassword("");
-              setConfirmPassword("");
-            },
+      Alert.alert("Thành công", "Mật khẩu đã được thay đổi thành công", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Clear form
+            setOldPassword("");
+            setNewPassword("");
+            setConfirmPassword("");
           },
-        ]
-      );
+        },
+      ]);
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -636,6 +647,14 @@ export default function ProfileScreen() {
               <Text style={styles.sectionBlockSub}>
                 Địa chỉ giao hàng của bạn
               </Text>
+              <Text
+                style={[
+                  styles.addressValue,
+                  !address && styles.addressPlaceholder,
+                ]}
+              >
+                {address || "Chưa có địa chỉ"}
+              </Text>
               <TouchableOpacity
                 style={styles.addAddressBtn}
                 onPress={() =>
@@ -643,7 +662,9 @@ export default function ProfileScreen() {
                 }
               >
                 <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addAddressBtnText}>Thêm địa chỉ</Text>
+                <Text style={styles.addAddressBtnText}>
+                  {address ? "Cập nhật địa chỉ" : "Thêm địa chỉ"}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -665,14 +686,14 @@ export default function ProfileScreen() {
               Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu
             </Text>
             <View style={styles.divider} />
-            
+
             {passwordError ? (
               <View style={styles.errorBanner}>
                 <Ionicons name="alert-circle" size={20} color={Colors.error} />
                 <Text style={styles.errorText}>{passwordError}</Text>
               </View>
             ) : null}
-            
+
             <InputField
               label="Mật khẩu hiện tại"
               value={oldPassword}
@@ -694,7 +715,8 @@ export default function ProfileScreen() {
               placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)"
             />
             <Text style={styles.passwordHint}>
-              Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số
+              Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và
+              số
             </Text>
             <InputField
               label="Xác nhận mật khẩu mới"
@@ -785,8 +807,8 @@ export default function ProfileScreen() {
                   {previewUser?.role === "Admin"
                     ? "Quản trị viên"
                     : previewUser?.role === "Staff"
-                    ? "Nhân viên"
-                    : "Khách hàng"}
+                      ? "Nhân viên"
+                      : "Khách hàng"}
                 </Text>
               </View>
             </View>
@@ -1016,6 +1038,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.sm,
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
+  },
+  addressValue: {
+    fontSize: Typography.size.sm,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  addressPlaceholder: {
+    color: Colors.textMuted,
   },
   addAddressBtn: {
     flexDirection: "row",
