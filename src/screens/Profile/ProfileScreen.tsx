@@ -12,6 +12,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -23,7 +24,7 @@ import {
   Shadow,
 } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
-import { useCart } from "../../context/CartContext";
+import { pointApi, userApi } from "../../services/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -32,8 +33,6 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.72;
 type Tab =
   | "profile"
   | "password"
-  | "orders"
-  | "membership"
   | "points"
   | "vouchers";
 type Gender = "male" | "female" | "other" | null;
@@ -47,6 +46,86 @@ const formatDateOfBirth = (value?: string) => {
   if (!year || !month || !day) return value;
 
   return `${day}/${month}/${year}`;
+};
+
+const toApiDate = (value: string) => {
+  if (!value.trim()) return "";
+  const normalized = value.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  const parts = normalized.split("/");
+  if (parts.length !== 3) return "";
+
+  const [day, month, year] = parts;
+  if (!day || !month || !year) return "";
+  if (year.length !== 4) return "";
+
+  const d = Number(day);
+  const m = Number(month);
+  const y = Number(year);
+  if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) {
+    return "";
+  }
+  if (d < 1 || d > 31 || m < 1 || m > 12) return "";
+
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+};
+
+interface PointHistoryItem {
+  _id?: string;
+  points: number;
+  type?: string;
+  description?: string;
+  createdAt?: string;
+}
+
+interface RewardItem {
+  _id: string;
+  title?: string;
+  name?: string;
+  pointsRequired?: number;
+  pointsCost?: number;
+  description?: string;
+}
+
+interface UserVoucherItem {
+  _id?: string;
+  code?: string;
+  voucherCode?: string;
+  title?: string;
+  name?: string;
+  description?: string;
+  quantity?: number;
+  expiresAt?: string;
+  expiryDate?: string;
+}
+
+const normalizeVoucherItem = (raw: any): UserVoucherItem => {
+  const nestedVoucher = raw?.voucher ?? raw?.voucherId ?? raw?.voucherData ?? raw;
+
+  return {
+    _id:
+      raw?._id ||
+      raw?.id ||
+      nestedVoucher?._id ||
+      nestedVoucher?.id ||
+      nestedVoucher?.voucherId,
+    code: nestedVoucher?.code || raw?.code || raw?.voucherCode,
+    voucherCode: raw?.voucherCode || nestedVoucher?.voucherCode,
+    title: nestedVoucher?.title || raw?.title,
+    name: nestedVoucher?.name || raw?.name,
+    description: nestedVoucher?.description || raw?.description,
+    quantity: Number(raw?.quantity ?? raw?.count ?? 1),
+    expiresAt:
+      nestedVoucher?.expiresAt ||
+      nestedVoucher?.expiryDate ||
+      nestedVoucher?.expiredAt ||
+      raw?.expiresAt,
+    expiryDate: raw?.expiryDate || nestedVoucher?.expiryDate,
+  };
 };
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
@@ -165,18 +244,6 @@ const MENU_ITEMS: { tab: Tab; icon: any; label: string; group: string }[] = [
     icon: "lock-closed-outline",
     label: "Đổi Mật Khẩu",
     group: "TÀI KHOẢN",
-  },
-  {
-    tab: "orders",
-    icon: "receipt-outline",
-    label: "Đơn Mua",
-    group: "TÀI KHOẢN",
-  },
-  {
-    tab: "membership",
-    icon: "star-outline",
-    label: "Chương trình thành viên",
-    group: "NURA MEMBERS",
   },
   {
     tab: "points",
@@ -419,8 +486,7 @@ const drawerStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
-  const { user, isAuthenticated, logout, changePassword } = useAuth();
-  const { totalItems } = useCart();
+  const { user, isAuthenticated, logout, changePassword, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -436,6 +502,18 @@ export default function ProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [pointsError, setPointsError] = useState("");
+  const [pointBalance, setPointBalance] = useState(0);
+  const [pointHistory, setPointHistory] = useState<PointHistoryItem[]>([]);
+  const [pointRewards, setPointRewards] = useState<RewardItem[]>([]);
+  const [redeemingRewardId, setRedeemingRewardId] = useState("");
+
+  const [vouchersLoading, setVouchersLoading] = useState(false);
+  const [vouchersError, setVouchersError] = useState("");
+  const [myVouchers, setMyVouchers] = useState<UserVoucherItem[]>([]);
 
   // Populate form fields with user data when available
   useEffect(() => {
@@ -452,6 +530,81 @@ export default function ProfileScreen() {
     (screen: string) => () => navigation.navigate(screen),
     [navigation],
   );
+
+  const extractArray = useCallback((payload: any) => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.rewards)) return payload.rewards;
+    if (Array.isArray(payload?.history)) return payload.history;
+    if (Array.isArray(payload?.vouchers)) return payload.vouchers;
+    if (Array.isArray(payload?.myVouchers)) return payload.myVouchers;
+    return [];
+  }, []);
+
+  const loadPointsData = useCallback(async () => {
+    setPointsLoading(true);
+    setPointsError("");
+
+    try {
+      const [balanceRes, historyRes, rewardsRes] = await Promise.all([
+        pointApi.getBalance(),
+        pointApi.getHistory(),
+        pointApi.getRewards(),
+      ]);
+
+      const balancePayload = balanceRes?.data;
+      const rawBalance =
+        balancePayload?.data?.balance ??
+        balancePayload?.balance ??
+        balancePayload?.data?.points ??
+        balancePayload?.points ??
+        0;
+      setPointBalance(Number(rawBalance) || 0);
+
+      setPointHistory(extractArray(historyRes?.data) as PointHistoryItem[]);
+      setPointRewards(extractArray(rewardsRes?.data) as RewardItem[]);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tải dữ liệu điểm";
+      setPointsError(message);
+    } finally {
+      setPointsLoading(false);
+    }
+  }, [extractArray]);
+
+  const loadVouchers = useCallback(async () => {
+    setVouchersLoading(true);
+    setVouchersError("");
+
+    try {
+      const res = await userApi.getMyVouchers();
+      const rawList = extractArray(res?.data);
+      const normalized = rawList
+        .map((item: any) => normalizeVoucherItem(item))
+        .filter((item: UserVoucherItem) => !!(item._id || item.code || item.voucherCode));
+      setMyVouchers(normalized);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tải voucher của bạn";
+      setVouchersError(message);
+    } finally {
+      setVouchersLoading(false);
+    }
+  }, [extractArray]);
+
+  useEffect(() => {
+    if (activeTab === "points") {
+      loadPointsData();
+    }
+    if (activeTab === "vouchers") {
+      loadVouchers();
+    }
+  }, [activeTab, loadPointsData, loadVouchers]);
 
   const handleChangePassword = useCallback(async () => {
     // Clear previous errors
@@ -533,6 +686,70 @@ export default function ProfileScreen() {
     ]);
   }, [logout]);
 
+  const handleSaveProfile = useCallback(async () => {
+    if (!user?._id) return;
+
+    const normalizedDob = toApiDate(dob);
+    if (dob.trim() && !normalizedDob) {
+      Alert.alert("Ngày sinh không hợp lệ", "Vui lòng nhập theo định dạng DD/MM/YYYY");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        phone: phone.trim(),
+        gender,
+        dateOfBirth: normalizedDob,
+        address: address.trim(),
+      };
+
+      const res = await userApi.update(user._id, payload);
+      const updatedPayload = res?.data?.data ?? res?.data?.user ?? res?.data ?? {};
+
+      const updatedUser = {
+        ...user,
+        ...updatedPayload,
+        _id: updatedPayload?._id || updatedPayload?.id || user._id,
+      };
+
+      updateUser(updatedUser);
+      setDob(formatDateOfBirth(updatedUser?.dateOfBirth));
+      Alert.alert("Thành công", "Thông tin hồ sơ đã được cập nhật");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể cập nhật hồ sơ";
+      Alert.alert("Cập nhật thất bại", message);
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [address, dob, gender, name, phone, updateUser, user]);
+
+  const handleRedeemReward = useCallback(
+    async (rewardId: string) => {
+      if (!rewardId) return;
+
+      setRedeemingRewardId(rewardId);
+      try {
+        await pointApi.redeemReward(rewardId);
+        Alert.alert("Thành công", "Đổi thưởng thành công");
+        await Promise.all([loadPointsData(), loadVouchers()]);
+      } catch (error: any) {
+        const message =
+          error?.response?.data?.message ||
+          error?.message ||
+          "Không thể đổi thưởng";
+        Alert.alert("Đổi thưởng thất bại", message);
+      } finally {
+        setRedeemingRewardId("");
+      }
+    },
+    [loadPointsData, loadVouchers],
+  );
+
   const previewUser = user ?? {
     _id: "preview-id",
     name: "Test User",
@@ -582,8 +799,6 @@ export default function ProfileScreen() {
   const tabTitle: Record<Tab, string> = {
     profile: "Hồ Sơ Của Tôi",
     password: "Đổi Mật Khẩu",
-    orders: "Đơn Mua",
-    membership: "Chương Trình Thành Viên",
     points: "Đổi Điểm",
     vouchers: "Vouchers",
   };
@@ -602,17 +817,6 @@ export default function ProfileScreen() {
               <View style={styles.avatarCircle}>
                 <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
               </View>
-              <TouchableOpacity
-                style={styles.choosePhotoBtn}
-                onPress={() =>
-                  Alert.alert("Chọn ảnh", "Tính năng đang phát triển")
-                }
-              >
-                <Text style={styles.choosePhotoBtnText}>Chọn ảnh</Text>
-              </TouchableOpacity>
-              <Text style={styles.photoHint}>
-                Dung lượng file tối đa 1MB.{"\n"}Định dạng JPEG, PNG
-              </Text>
             </View>
 
             <View style={styles.divider} />
@@ -641,41 +845,22 @@ export default function ProfileScreen() {
               onChangeText={setDob}
               placeholder="DD/MM/YYYY"
             />
-
-            <View style={styles.sectionBlock}>
-              <Text style={styles.sectionBlockTitle}>Địa chỉ</Text>
-              <Text style={styles.sectionBlockSub}>
-                Địa chỉ giao hàng của bạn
-              </Text>
-              <Text
-                style={[
-                  styles.addressValue,
-                  !address && styles.addressPlaceholder,
-                ]}
-              >
-                {address || "Chưa có địa chỉ"}
-              </Text>
-              <TouchableOpacity
-                style={styles.addAddressBtn}
-                onPress={() =>
-                  Alert.alert("Địa chỉ", "Tính năng đang phát triển")
-                }
-              >
-                <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addAddressBtnText}>
-                  {address ? "Cập nhật địa chỉ" : "Thêm địa chỉ"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <InputField
+              label="Địa chỉ"
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Nhập địa chỉ của bạn"
+            />
 
             <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={() =>
-                Alert.alert("Đã lưu", "Thông tin đã được cập nhật")
-              }
+              style={[styles.saveBtn, profileSaving && styles.saveBtnDisabled]}
+              onPress={handleSaveProfile}
+              disabled={profileSaving}
               activeOpacity={0.85}
             >
-              <Text style={styles.saveBtnText}>Lưu</Text>
+              <Text style={styles.saveBtnText}>
+                {profileSaving ? "Đang lưu..." : "Lưu"}
+              </Text>
             </TouchableOpacity>
           </>
         );
@@ -743,24 +928,168 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </>
         );
+      case "points":
+        return (
+          <>
+            <Text style={styles.formSubtitle}>
+              Theo dõi điểm thưởng và đổi quà ngay trên tài khoản của bạn
+            </Text>
+
+            {pointsLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={Colors.primary} size="large" />
+              </View>
+            ) : pointsError ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={20} color={Colors.error} />
+                <Text style={styles.errorText}>{pointsError}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.pointsBalanceCard}>
+                  <Text style={styles.pointsBalanceLabel}>Điểm hiện có</Text>
+                  <Text style={styles.pointsBalanceValue}>
+                    {pointBalance.toLocaleString("vi-VN")}
+                  </Text>
+                </View>
+
+                <Text style={styles.listSectionTitle}>Phần thưởng khả dụng</Text>
+                {pointRewards.length === 0 ? (
+                  <Text style={styles.emptyText}>Hiện chưa có phần thưởng</Text>
+                ) : (
+                  pointRewards.map((reward) => {
+                    const rewardId = reward?._id || "";
+                    const pointCost = Number(
+                      reward.pointsRequired ?? reward.pointsCost ?? 0,
+                    );
+                    const title = reward.title || reward.name || "Phần thưởng";
+                    const canRedeem = pointBalance >= pointCost && !!rewardId;
+
+                    return (
+                      <View key={rewardId || title} style={styles.rewardRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rewardTitle}>{title}</Text>
+                          <Text style={styles.rewardMeta}>
+                            {pointCost.toLocaleString("vi-VN")} điểm
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.redeemBtn,
+                            (!canRedeem || redeemingRewardId === rewardId) &&
+                              styles.redeemBtnDisabled,
+                          ]}
+                          disabled={!canRedeem || redeemingRewardId === rewardId}
+                          onPress={() => handleRedeemReward(rewardId)}
+                        >
+                          <Text style={styles.redeemBtnText}>
+                            {redeemingRewardId === rewardId
+                              ? "Đang đổi"
+                              : "Đổi"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })
+                )}
+
+                <Text style={styles.listSectionTitle}>Lịch sử điểm</Text>
+                {pointHistory.length === 0 ? (
+                  <Text style={styles.emptyText}>Chưa có giao dịch điểm</Text>
+                ) : (
+                  pointHistory.slice(0, 10).map((item, index) => {
+                    const value = Number(item.points) || 0;
+                    const isPlus = value > 0;
+                    return (
+                      <View key={item._id || `${index}`} style={styles.historyRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTitle}>
+                            {item.description || "Giao dịch điểm"}
+                          </Text>
+                          <Text style={styles.historyDate}>
+                            {item.createdAt
+                              ? new Date(item.createdAt).toLocaleDateString("vi-VN")
+                              : ""}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.historyValue,
+                            { color: isPlus ? "#2E7D32" : Colors.error },
+                          ]}
+                        >
+                          {isPlus ? "+" : ""}
+                          {value.toLocaleString("vi-VN")}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </>
+        );
+      case "vouchers":
+        return (
+          <>
+            <Text style={styles.formSubtitle}>
+              Danh sách voucher hiện có trong tài khoản của bạn
+            </Text>
+
+            {vouchersLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={Colors.primary} size="large" />
+              </View>
+            ) : vouchersError ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={20} color={Colors.error} />
+                <Text style={styles.errorText}>{vouchersError}</Text>
+              </View>
+            ) : myVouchers.length === 0 ? (
+              <View style={styles.emptyTab}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={64}
+                  color={Colors.primaryLight}
+                />
+                <Text style={styles.emptyTabTitle}>Bạn chưa có voucher</Text>
+                <Text style={styles.emptyTabSub}>
+                  Hãy đổi điểm hoặc theo dõi chương trình khuyến mãi
+                </Text>
+              </View>
+            ) : (
+              myVouchers.map((voucher, index) => {
+                const code = voucher.code || voucher.voucherCode || "---";
+                const title = voucher.title || voucher.name || voucher.description || "Voucher";
+                const quantity = Number(voucher.quantity) || 1;
+                const expires = voucher.expiresAt || voucher.expiryDate;
+
+                return (
+                  <View key={voucher._id || `${code}-${index}`} style={styles.voucherRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.voucherCode}>{code}</Text>
+                      <Text style={styles.voucherTitle}>{title}</Text>
+                      {expires ? (
+                        <Text style={styles.voucherMeta}>
+                          Hết hạn: {new Date(expires).toLocaleDateString("vi-VN")}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.voucherQtyBadge}>
+                      <Text style={styles.voucherQtyText}>x{quantity}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </>
+        );
       default:
-        const emptyIcons: Record<string, any> = {
-          orders: "receipt-outline",
-          membership: "star-outline",
-          points: "gift-outline",
-          vouchers: "pricetag-outline",
-        };
         return (
           <View style={styles.emptyTab}>
-            <Ionicons
-              name={emptyIcons[activeTab]}
-              size={64}
-              color={Colors.primaryLight}
-            />
+            <Ionicons name="person-outline" size={64} color={Colors.primaryLight} />
             <Text style={styles.emptyTabTitle}>{tabTitle[activeTab]}</Text>
-            <Text style={styles.emptyTabSub}>
-              Tính năng đang được phát triển
-            </Text>
+            <Text style={styles.emptyTabSub}>Tính năng đang được phát triển</Text>
           </View>
         );
     }
@@ -1001,68 +1330,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryLight,
   },
   avatarImg: { width: "100%", height: "100%" },
-  choosePhotoBtn: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  choosePhotoBtnText: {
-    fontSize: Typography.size.sm,
-    color: Colors.text,
-    fontWeight: Typography.weight.medium,
-  },
-  photoHint: {
-    fontSize: Typography.size.xs,
-    color: Colors.textMuted,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-
-  // Address block
-  sectionBlock: {
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    padding: Spacing.base,
-    marginBottom: Spacing.base,
-  },
-  sectionBlockTitle: {
-    fontSize: Typography.size.base,
-    fontWeight: Typography.weight.bold,
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  sectionBlockSub: {
-    fontSize: Typography.size.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  addressValue: {
-    fontSize: Typography.size.sm,
-    color: Colors.text,
-    lineHeight: 20,
-    marginBottom: Spacing.md,
-  },
-  addressPlaceholder: {
-    color: Colors.textMuted,
-  },
-  addAddressBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    alignSelf: "flex-start",
-  },
-  addAddressBtnText: {
-    color: Colors.white,
-    fontSize: Typography.size.sm,
-    fontWeight: Typography.weight.semiBold,
-  },
 
   // Save
   saveBtn: {
@@ -1122,5 +1389,141 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     marginTop: Spacing.sm,
+  },
+
+  // Loading
+  loadingWrap: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Points
+  pointsBalanceCard: {
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    marginBottom: Spacing.base,
+  },
+  pointsBalanceLabel: {
+    fontSize: Typography.size.sm,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+  pointsBalanceValue: {
+    fontSize: 30,
+    color: Colors.primary,
+    fontWeight: Typography.weight.bold,
+  },
+  listSectionTitle: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    fontSize: Typography.size.base,
+    fontWeight: Typography.weight.bold,
+    color: Colors.text,
+  },
+  rewardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    marginBottom: Spacing.sm,
+  },
+  rewardTitle: {
+    fontSize: Typography.size.base,
+    fontWeight: Typography.weight.semiBold,
+    color: Colors.text,
+  },
+  rewardMeta: {
+    marginTop: 2,
+    fontSize: Typography.size.sm,
+    color: Colors.textSecondary,
+  },
+  redeemBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  redeemBtnDisabled: {
+    backgroundColor: Colors.textMuted,
+    opacity: 0.75,
+  },
+  redeemBtnText: {
+    color: Colors.white,
+    fontSize: Typography.size.sm,
+    fontWeight: Typography.weight.semiBold,
+  },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingVertical: Spacing.sm,
+  },
+  historyTitle: {
+    fontSize: Typography.size.sm,
+    color: Colors.text,
+    fontWeight: Typography.weight.medium,
+  },
+  historyDate: {
+    marginTop: 2,
+    fontSize: Typography.size.xs,
+    color: Colors.textMuted,
+  },
+  historyValue: {
+    fontSize: Typography.size.base,
+    fontWeight: Typography.weight.bold,
+  },
+
+  // Vouchers
+  voucherRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+  },
+  voucherCode: {
+    fontSize: Typography.size.base,
+    color: Colors.primary,
+    fontWeight: Typography.weight.bold,
+  },
+  voucherTitle: {
+    marginTop: 2,
+    fontSize: Typography.size.sm,
+    color: Colors.text,
+  },
+  voucherMeta: {
+    marginTop: 2,
+    fontSize: Typography.size.xs,
+    color: Colors.textMuted,
+  },
+  voucherQtyBadge: {
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
+  },
+  voucherQtyText: {
+    color: Colors.primary,
+    fontWeight: Typography.weight.bold,
+    fontSize: Typography.size.sm,
+  },
+  emptyText: {
+    fontSize: Typography.size.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
   },
 });

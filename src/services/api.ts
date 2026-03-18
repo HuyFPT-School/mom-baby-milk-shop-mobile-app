@@ -48,6 +48,9 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (!original) {
+      return Promise.reject(error);
+    }
 
     // If local server unreachable, retry with Vercel fallback (only when USE_LOCAL)
     const isNetworkError =
@@ -60,18 +63,21 @@ api.interceptors.response.use(
       return axios(original);
     }
 
-    // Auto-refresh on 401
-    if (error.response?.status === 401 && !original._retry) {
+    // Auto-refresh on auth failures (some backends return 403 instead of 401)
+    const status = error.response?.status;
+    const isAuthEndpoint = String(original.url || '').includes('/api/auth/token');
+    if ((status === 401 || status === 403) && !original._retry && !isAuthEndpoint) {
       original._retry = true;
       try {
         const refreshToken = await SecureStore.getItemAsync('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
         const { data } = await axios.post(
-          `${BASE_URL}/api/auth/token`,
+          `${original.baseURL || BASE_URL}/api/auth/token`,
           {},
           { headers: { Authorization: `Bearer ${refreshToken}` } },
         );
         await SecureStore.setItemAsync('accessToken', data.accessToken);
+        original.headers = original.headers || {};
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {
@@ -100,8 +106,27 @@ export const authApi = {
     api.post('/api/auth/forget-password', { email }),
   resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
     api.post('/api/auth/reset-password', data),
-  changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    api.post('/api/auth/change-password', data),
+  changePassword: async (data: { email?: string; currentPassword: string; newPassword: string }) => {
+    try {
+      return await api.post('/api/auth/change-password', {
+        email: data.email,
+        currentPassword: data.currentPassword,
+        oldPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // Compatibility fallback for backends expecting oldPassword key
+      if (status === 400 || status === 404 || status === 422) {
+        return api.post('/api/auth/change-password', {
+          email: data.email,
+          oldPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        });
+      }
+      throw error;
+    }
+  },
   resendOtp: (email: string) =>
     api.post('/api/auth/send-reset-otp', { email }),
 };
