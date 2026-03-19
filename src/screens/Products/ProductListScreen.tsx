@@ -209,9 +209,7 @@ export default function ProductListScreen({
 
   // ── Handle Product Press ──
   const handleProductPress = (product: Product) => {
-    // Navigate to product detail screen if exists
-    console.log("Open product detail:", product._id);
-    // navigation?.navigate('ProductDetail', { productId: product._id });
+    navigation?.navigate("ProductDetail", { productId: product._id });
   };
 
   // ── Handle Add to Cart ──
