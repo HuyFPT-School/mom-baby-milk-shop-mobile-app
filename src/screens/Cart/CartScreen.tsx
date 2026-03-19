@@ -217,9 +217,18 @@ export default function CartScreen({ navigation }: { navigation?: any }) {
                         <Text style={styles.bottomLabel}>Thanh toán</Text>
                         <Text style={styles.bottomPrice}>{formatPrice(totalPayNow)}</Text>
                     </View>
-                    <TouchableOpacity style={styles.checkoutBtn} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={styles.checkoutBtn}
+                        activeOpacity={0.85}
+                        onPress={() => navigation?.navigate?.('Checkout')}
+                        disabled={totalPayNow <= 0}
+                    >
                         <LinearGradient
-                            colors={[Colors.primary, '#9333EA']}
+                            colors={
+                                totalPayNow > 0
+                                    ? [Colors.primary, '#9333EA']
+                                    : [Colors.textMuted, Colors.textMuted]
+                            }
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.checkoutGradient}

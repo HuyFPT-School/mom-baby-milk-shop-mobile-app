@@ -248,7 +248,11 @@ export const pointApi = {
 
 export const voucherApi = {
   getAll: () => api.get('/api/voucher'),
-  validate: (code: string) => api.post('/api/voucher/validate', { code }),
+  validate: (code: string, orderTotal?: number) =>
+    api.post('/api/voucher/validate', {
+      code,
+      ...(typeof orderTotal === 'number' ? { orderTotal } : {}),
+    }),
   apply: (data: { code: string; orderTotal?: number }) =>
     api.post('/api/voucher/apply', data),
   createManual: (data: object) => api.post('/api/voucher/create-manual', data),
