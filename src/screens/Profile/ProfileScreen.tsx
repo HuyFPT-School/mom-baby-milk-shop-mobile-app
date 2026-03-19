@@ -531,80 +531,17 @@ export default function ProfileScreen() {
     [navigation],
   );
 
-  const extractArray = useCallback((payload: any) => {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.data)) return payload.data;
-    if (Array.isArray(payload?.items)) return payload.items;
-    if (Array.isArray(payload?.rewards)) return payload.rewards;
-    if (Array.isArray(payload?.history)) return payload.history;
-    if (Array.isArray(payload?.vouchers)) return payload.vouchers;
-    if (Array.isArray(payload?.myVouchers)) return payload.myVouchers;
-    return [];
-  }, []);
+  const handleSelectTab = useCallback(
+    (tab: Tab) => {
+      if (tab === "orders") {
+        navigation.navigate("OrderTracking");
+        return;
+      }
 
-  const loadPointsData = useCallback(async () => {
-    setPointsLoading(true);
-    setPointsError("");
-
-    try {
-      const [balanceRes, historyRes, rewardsRes] = await Promise.all([
-        pointApi.getBalance(),
-        pointApi.getHistory(),
-        pointApi.getRewards(),
-      ]);
-
-      const balancePayload = balanceRes?.data;
-      const rawBalance =
-        balancePayload?.data?.balance ??
-        balancePayload?.balance ??
-        balancePayload?.data?.points ??
-        balancePayload?.points ??
-        0;
-      setPointBalance(Number(rawBalance) || 0);
-
-      setPointHistory(extractArray(historyRes?.data) as PointHistoryItem[]);
-      setPointRewards(extractArray(rewardsRes?.data) as RewardItem[]);
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Không thể tải dữ liệu điểm";
-      setPointsError(message);
-    } finally {
-      setPointsLoading(false);
-    }
-  }, [extractArray]);
-
-  const loadVouchers = useCallback(async () => {
-    setVouchersLoading(true);
-    setVouchersError("");
-
-    try {
-      const res = await userApi.getMyVouchers();
-      const rawList = extractArray(res?.data);
-      const normalized = rawList
-        .map((item: any) => normalizeVoucherItem(item))
-        .filter((item: UserVoucherItem) => !!(item._id || item.code || item.voucherCode));
-      setMyVouchers(normalized);
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Không thể tải voucher của bạn";
-      setVouchersError(message);
-    } finally {
-      setVouchersLoading(false);
-    }
-  }, [extractArray]);
-
-  useEffect(() => {
-    if (activeTab === "points") {
-      loadPointsData();
-    }
-    if (activeTab === "vouchers") {
-      loadVouchers();
-    }
-  }, [activeTab, loadPointsData, loadVouchers]);
+      setActiveTab(tab);
+    },
+    [navigation],
+  );
 
   const handleChangePassword = useCallback(async () => {
     // Clear previous errors
@@ -1100,7 +1037,7 @@ export default function ProfileScreen() {
       <Drawer
         visible={drawerOpen}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={handleSelectTab}
         onClose={() => setDrawerOpen(false)}
         user={previewUser}
         avatarUri={avatarUri}
