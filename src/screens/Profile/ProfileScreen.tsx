@@ -30,11 +30,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.72;
 
-type Tab =
-  | "profile"
-  | "password"
-  | "points"
-  | "vouchers";
+type Tab = "profile" | "password" | "orders" | "points" | "vouchers";
 type Gender = "male" | "female" | "other" | null;
 
 const formatDateOfBirth = (value?: string) => {
@@ -104,7 +100,8 @@ interface UserVoucherItem {
 }
 
 const normalizeVoucherItem = (raw: any): UserVoucherItem => {
-  const nestedVoucher = raw?.voucher ?? raw?.voucherId ?? raw?.voucherData ?? raw;
+  const nestedVoucher =
+    raw?.voucher ?? raw?.voucherId ?? raw?.voucherData ?? raw;
 
   return {
     _id:
@@ -243,6 +240,12 @@ const MENU_ITEMS: { tab: Tab; icon: any; label: string; group: string }[] = [
     tab: "password",
     icon: "lock-closed-outline",
     label: "Đổi Mật Khẩu",
+    group: "TÀI KHOẢN",
+  },
+  {
+    tab: "orders",
+    icon: "receipt-outline",
+    label: "Theo dõi đơn hàng",
     group: "TÀI KHOẢN",
   },
   {
@@ -486,7 +489,8 @@ const drawerStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
-  const { user, isAuthenticated, logout, changePassword, updateUser } = useAuth();
+  const { user, isAuthenticated, logout, changePassword, updateUser } =
+    useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -525,6 +529,89 @@ export default function ProfileScreen() {
       setAddress(user.address || "");
     }
   }, [user]);
+
+  const loadPointsData = useCallback(async () => {
+    setPointsLoading(true);
+    setPointsError("");
+
+    try {
+      const [balanceRes, historyRes, rewardsRes] = await Promise.all([
+        pointApi.getBalance(),
+        pointApi.getHistory(),
+        pointApi.getRewards(),
+      ]);
+
+      const rawBalance =
+        balanceRes?.data?.data?.balance ??
+        balanceRes?.data?.balance ??
+        balanceRes?.data?.data?.points ??
+        balanceRes?.data?.points ??
+        0;
+      setPointBalance(Number(rawBalance) || 0);
+
+      const rawHistory =
+        historyRes?.data?.data ?? historyRes?.data?.history ?? historyRes?.data;
+      setPointHistory(Array.isArray(rawHistory) ? rawHistory : []);
+
+      const rawRewards =
+        rewardsRes?.data?.data ?? rewardsRes?.data?.rewards ?? rewardsRes?.data;
+      setPointRewards(Array.isArray(rawRewards) ? rawRewards : []);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tải dữ liệu điểm";
+      setPointsError(message);
+      setPointBalance(0);
+      setPointHistory([]);
+      setPointRewards([]);
+    } finally {
+      setPointsLoading(false);
+    }
+  }, []);
+
+  const loadVouchers = useCallback(async () => {
+    setVouchersLoading(true);
+    setVouchersError("");
+
+    try {
+      const res = await userApi.getMyVouchers();
+      const rawList =
+        res?.data?.data ?? res?.data?.vouchers ?? res?.data?.items ?? res?.data;
+      const vouchers = Array.isArray(rawList)
+        ? rawList.map(normalizeVoucherItem)
+        : [];
+      setMyVouchers(vouchers);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tải danh sách voucher";
+      setVouchersError(message);
+      setMyVouchers([]);
+    } finally {
+      setVouchersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || __previewGuest) return;
+
+    if (activeTab === "points") {
+      void loadPointsData();
+      return;
+    }
+
+    if (activeTab === "vouchers") {
+      void loadVouchers();
+    }
+  }, [
+    __previewGuest,
+    activeTab,
+    isAuthenticated,
+    loadPointsData,
+    loadVouchers,
+  ]);
 
   const navigate = useCallback(
     (screen: string) => () => navigation.navigate(screen),
@@ -628,7 +715,10 @@ export default function ProfileScreen() {
 
     const normalizedDob = toApiDate(dob);
     if (dob.trim() && !normalizedDob) {
-      Alert.alert("Ngày sinh không hợp lệ", "Vui lòng nhập theo định dạng DD/MM/YYYY");
+      Alert.alert(
+        "Ngày sinh không hợp lệ",
+        "Vui lòng nhập theo định dạng DD/MM/YYYY",
+      );
       return;
     }
 
@@ -643,7 +733,8 @@ export default function ProfileScreen() {
       };
 
       const res = await userApi.update(user._id, payload);
-      const updatedPayload = res?.data?.data ?? res?.data?.user ?? res?.data ?? {};
+      const updatedPayload =
+        res?.data?.data ?? res?.data?.user ?? res?.data ?? {};
 
       const updatedUser = {
         ...user,
@@ -736,6 +827,7 @@ export default function ProfileScreen() {
   const tabTitle: Record<Tab, string> = {
     profile: "Hồ Sơ Của Tôi",
     password: "Đổi Mật Khẩu",
+    orders: "Theo dõi đơn hàng",
     points: "Đổi Điểm",
     vouchers: "Vouchers",
   };
@@ -890,7 +982,9 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
 
-                <Text style={styles.listSectionTitle}>Phần thưởng khả dụng</Text>
+                <Text style={styles.listSectionTitle}>
+                  Phần thưởng khả dụng
+                </Text>
                 {pointRewards.length === 0 ? (
                   <Text style={styles.emptyText}>Hiện chưa có phần thưởng</Text>
                 ) : (
@@ -916,7 +1010,9 @@ export default function ProfileScreen() {
                             (!canRedeem || redeemingRewardId === rewardId) &&
                               styles.redeemBtnDisabled,
                           ]}
-                          disabled={!canRedeem || redeemingRewardId === rewardId}
+                          disabled={
+                            !canRedeem || redeemingRewardId === rewardId
+                          }
                           onPress={() => handleRedeemReward(rewardId)}
                         >
                           <Text style={styles.redeemBtnText}>
@@ -938,14 +1034,19 @@ export default function ProfileScreen() {
                     const value = Number(item.points) || 0;
                     const isPlus = value > 0;
                     return (
-                      <View key={item._id || `${index}`} style={styles.historyRow}>
+                      <View
+                        key={item._id || `${index}`}
+                        style={styles.historyRow}
+                      >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.historyTitle}>
                             {item.description || "Giao dịch điểm"}
                           </Text>
                           <Text style={styles.historyDate}>
                             {item.createdAt
-                              ? new Date(item.createdAt).toLocaleDateString("vi-VN")
+                              ? new Date(item.createdAt).toLocaleDateString(
+                                  "vi-VN",
+                                )
                               : ""}
                           </Text>
                         </View>
@@ -997,18 +1098,26 @@ export default function ProfileScreen() {
             ) : (
               myVouchers.map((voucher, index) => {
                 const code = voucher.code || voucher.voucherCode || "---";
-                const title = voucher.title || voucher.name || voucher.description || "Voucher";
+                const title =
+                  voucher.title ||
+                  voucher.name ||
+                  voucher.description ||
+                  "Voucher";
                 const quantity = Number(voucher.quantity) || 1;
                 const expires = voucher.expiresAt || voucher.expiryDate;
 
                 return (
-                  <View key={voucher._id || `${code}-${index}`} style={styles.voucherRow}>
+                  <View
+                    key={voucher._id || `${code}-${index}`}
+                    style={styles.voucherRow}
+                  >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.voucherCode}>{code}</Text>
                       <Text style={styles.voucherTitle}>{title}</Text>
                       {expires ? (
                         <Text style={styles.voucherMeta}>
-                          Hết hạn: {new Date(expires).toLocaleDateString("vi-VN")}
+                          Hết hạn:{" "}
+                          {new Date(expires).toLocaleDateString("vi-VN")}
                         </Text>
                       ) : null}
                     </View>
@@ -1024,9 +1133,15 @@ export default function ProfileScreen() {
       default:
         return (
           <View style={styles.emptyTab}>
-            <Ionicons name="person-outline" size={64} color={Colors.primaryLight} />
+            <Ionicons
+              name="person-outline"
+              size={64}
+              color={Colors.primaryLight}
+            />
             <Text style={styles.emptyTabTitle}>{tabTitle[activeTab]}</Text>
-            <Text style={styles.emptyTabSub}>Tính năng đang được phát triển</Text>
+            <Text style={styles.emptyTabSub}>
+              Tính năng đang được phát triển
+            </Text>
           </View>
         );
     }
