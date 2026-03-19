@@ -20,6 +20,7 @@ import ProfileScreen from "../screens/Profile/ProfileScreen";
 import HomeScreen from "../screens/HomeScreen";
 import CartScreen from "../screens/Cart/CartScreen";
 import ProductListScreen from "../screens/Products/ProductListScreen";
+import ProductDetailScreen from "../screens/Products/ProductDetailScreen";
 import OrderTrackingScreen from "../screens/Orders/OrderTrackingScreen";
 
 // ── Placeholder screens (to be replaced later) ──────────────────────────────
@@ -30,7 +31,6 @@ const Placeholder = ({ name }: { name: string }) => (
   </View>
 );
 
-const ProductDetailScreen = () => <Placeholder name="Chi tiết sản phẩm" />;
 const CheckoutScreen = () => <Placeholder name="Thanh toán" />;
 const PaymentResultScreen = () => <Placeholder name="Kết quả thanh toán" />;
 const SupportScreen = () => <Placeholder name="Hỗ trợ" />;
