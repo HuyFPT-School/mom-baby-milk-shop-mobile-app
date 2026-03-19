@@ -453,6 +453,18 @@ export default function ProfileScreen() {
     [navigation],
   );
 
+  const handleSelectTab = useCallback(
+    (tab: Tab) => {
+      if (tab === "orders") {
+        navigation.navigate("OrderTracking");
+        return;
+      }
+
+      setActiveTab(tab);
+    },
+    [navigation],
+  );
+
   const handleChangePassword = useCallback(async () => {
     // Clear previous errors
     setPasswordError("");
@@ -771,7 +783,7 @@ export default function ProfileScreen() {
       <Drawer
         visible={drawerOpen}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={handleSelectTab}
         onClose={() => setDrawerOpen(false)}
         user={previewUser}
         avatarUri={avatarUri}

@@ -1,17 +1,17 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import type { Product, Brand, Category } from '../types';
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
+import type { Product, Brand, Category } from "../types";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 // Android emulator: 10.0.2.2 maps to host machine's localhost
 // iOS simulator: localhost works directly
 // Fallback: Vercel deployment
 
-const USE_LOCAL = process.env.EXPO_PUBLIC_USE_LOCAL === 'true';
-const LOCAL_PORT = process.env.EXPO_PUBLIC_LOCAL_PORT ?? '3000';
+const USE_LOCAL = process.env.EXPO_PUBLIC_USE_LOCAL === "true";
+const LOCAL_PORT = process.env.EXPO_PUBLIC_LOCAL_PORT ?? "3000";
 const FALLBACK_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'https://mom-baby-milk-server.vercel.app';
+  process.env.EXPO_PUBLIC_API_URL ?? "https://mom-baby-milk-server.vercel.app";
 
 const LOCAL_URL = Platform.select({
   android: `http://10.0.2.2:${LOCAL_PORT}`,
@@ -26,14 +26,14 @@ const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   // Short timeout when local so fallback kicks in fast; standard for Vercel
   timeout: USE_LOCAL ? 4_000 : 10_000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { "Content-Type": "application/json" },
 });
 
 // ─── Request Interceptor (attach token) ─────────────────────────────────────
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    const token = await SecureStore.getItemAsync('accessToken');
+    const token = await SecureStore.getItemAsync("accessToken");
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -51,32 +51,46 @@ api.interceptors.response.use(
 
     // If local server unreachable, retry with Vercel fallback (only when USE_LOCAL)
     const isNetworkError =
-      !error.response || error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK';
+      !error.response ||
+      error.code === "ECONNABORTED" ||
+      error.code === "ERR_NETWORK";
     if (USE_LOCAL && isNetworkError && !original._fallbackRetried) {
       original._fallbackRetried = true;
       original.baseURL = FALLBACK_URL;
       original.timeout = 10_000;
-      console.log('⚡ Retrying with fallback URL:', FALLBACK_URL + original.url);
+      console.log(
+        "⚡ Retrying with fallback URL:",
+        FALLBACK_URL + original.url,
+      );
       return axios(original);
     }
 
-    // Auto-refresh on 401
-    if (error.response?.status === 401 && !original._retry) {
+    const status = error.response?.status;
+    // data may be a plain string (e.g. "Forbidden") or an object
+    const rawData = String(error.response?.data ?? "");
+    const message =
+      error.response?.data?.message || error.response?.data?.error || rawData;
+    const isAuthLike403 =
+      status === 403 &&
+      /(token|jwt|expired|unauthori|forbidden)/i.test(message);
+
+    // Auto-refresh on expired/invalid auth responses
+    if ((status === 401 || isAuthLike403) && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = await SecureStore.getItemAsync('refreshToken');
-        if (!refreshToken) throw new Error('No refresh token');
+        const refreshToken = await SecureStore.getItemAsync("refreshToken");
+        if (!refreshToken) throw new Error("No refresh token");
         const { data } = await axios.post(
           `${BASE_URL}/api/auth/token`,
           {},
           { headers: { Authorization: `Bearer ${refreshToken}` } },
         );
-        await SecureStore.setItemAsync('accessToken', data.accessToken);
+        await SecureStore.setItemAsync("accessToken", data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {
-        await SecureStore.deleteItemAsync('accessToken');
-        await SecureStore.deleteItemAsync('refreshToken');
+        await SecureStore.deleteItemAsync("accessToken");
+        await SecureStore.deleteItemAsync("refreshToken");
         return Promise.reject(error);
       }
     }
@@ -88,33 +102,37 @@ api.interceptors.response.use(
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (data: { fullname: string; email: string; password: string; role?: string; phone?: string }) =>
-    api.post('/api/auth/register', data),
+  register: (data: {
+    fullname: string;
+    email: string;
+    password: string;
+    role?: string;
+    phone?: string;
+  }) => api.post("/api/auth/register", data),
   login: (email: string, password: string) =>
-    api.post('/api/auth/login', { email, password }),
-  logout: () => api.post('/api/auth/logout'),
-  refreshToken: () => api.post('/api/auth/token'),
+    api.post("/api/auth/login", { email, password }),
+  logout: () => api.post("/api/auth/logout"),
+  refreshToken: () => api.post("/api/auth/token"),
   verifyEmail: (data: { email: string; otp: string }) =>
-    api.post('/api/auth/verify-email', data),
+    api.post("/api/auth/verify-email", data),
   forgetPassword: (email: string) =>
-    api.post('/api/auth/forget-password', { email }),
+    api.post("/api/auth/forget-password", { email }),
   resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
-    api.post('/api/auth/reset-password', data),
+    api.post("/api/auth/reset-password", data),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    api.post('/api/auth/change-password', data),
-  resendOtp: (email: string) =>
-    api.post('/api/auth/send-reset-otp', { email }),
+    api.post("/api/auth/change-password", data),
+  resendOtp: (email: string) => api.post("/api/auth/send-reset-otp", { email }),
 };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export const userApi = {
-  getAll: () => api.get('/api/users'),
-  create: (data: object) => api.post('/api/users', data),
+  getAll: () => api.get("/api/users"),
+  create: (data: object) => api.post("/api/users", data),
   getById: (id: string) => api.get(`/api/users/${id}`),
   update: (id: string, data: object) => api.patch(`/api/users/${id}`, data),
   delete: (id: string) => api.delete(`/api/users/${id}`),
-  getMyVouchers: () => api.get('/api/users/my-vouchers'),
+  getMyVouchers: () => api.get("/api/users/my-vouchers"),
 };
 
 // ─── Products ────────────────────────────────────────────────────────────────
@@ -126,8 +144,8 @@ export const productApi = {
     search?: string;
     page?: number;
     limit?: number;
-  }) => api.get<{ data: Product[] }>('/api/product', { params }),
-  create: (data: object) => api.post('/api/product', data),
+  }) => api.get<{ data: Product[] }>("/api/product", { params }),
+  create: (data: object) => api.post("/api/product", data),
   getById: (id: string) => api.get<{ data: Product }>(`/api/product/${id}`),
   update: (id: string, data: object) => api.patch(`/api/product/${id}`, data),
   delete: (id: string) => api.delete(`/api/product/${id}`),
@@ -136,10 +154,15 @@ export const productApi = {
   getByBrand: (id: string, params?: { page?: number; limit?: number }) =>
     api.get<{ data: Product[] }>(`/api/product/brand/${id}`, { params }),
   // Comments
-  createComment: (productId: string, data: { content: string; rating?: number }) =>
-    api.post(`/api/product/${productId}/comments`, data),
-  updateComment: (productId: string, commentId: string, data: { content?: string; rating?: number }) =>
-    api.put(`/api/product/${productId}/comments/${commentId}`, data),
+  createComment: (
+    productId: string,
+    data: { content: string; rating?: number },
+  ) => api.post(`/api/product/${productId}/comments`, data),
+  updateComment: (
+    productId: string,
+    commentId: string,
+    data: { content?: string; rating?: number },
+  ) => api.put(`/api/product/${productId}/comments/${commentId}`, data),
   deleteComment: (productId: string, commentId: string) =>
     api.delete(`/api/product/${productId}/comments/${commentId}`),
 };
@@ -147,8 +170,8 @@ export const productApi = {
 // ─── Categories ──────────────────────────────────────────────────────────────
 
 export const categoryApi = {
-  getAll: () => api.get<{ data: Category[] }>('/api/category'),
-  create: (data: object) => api.post('/api/category', data),
+  getAll: () => api.get<{ data: Category[] }>("/api/category"),
+  create: (data: object) => api.post("/api/category", data),
   getById: (id: string) => api.get<{ data: Category }>(`/api/category/${id}`),
   update: (id: string, data: object) => api.patch(`/api/category/${id}`, data),
   delete: (id: string) => api.delete(`/api/category/${id}`),
@@ -157,8 +180,8 @@ export const categoryApi = {
 // ─── Brands ──────────────────────────────────────────────────────────────────
 
 export const brandApi = {
-  getAll: () => api.get<{ data: Brand[] }>('/api/brand'),
-  create: (data: object) => api.post('/api/brand', data),
+  getAll: () => api.get<{ data: Brand[] }>("/api/brand"),
+  create: (data: object) => api.post("/api/brand", data),
   getById: (id: string) => api.get(`/api/brand/${id}`),
   update: (id: string, data: object) => api.patch(`/api/brand/${id}`, data),
   delete: (id: string) => api.delete(`/api/brand/${id}`),
@@ -168,9 +191,9 @@ export const brandApi = {
 
 export const blogApi = {
   getAll: (params?: { page?: number; limit?: number }) =>
-    api.get('/api/blogs', { params }),
-  create: (data: object) => api.post('/api/blogs', data),
-  getPopular: () => api.get('/api/blogs/popular'),
+    api.get("/api/blogs", { params }),
+  create: (data: object) => api.post("/api/blogs", data),
+  getPopular: () => api.get("/api/blogs/popular"),
   getByTags: (tags: string) => api.get(`/api/blogs/tags/${tags}`),
   getById: (id: string) => api.get(`/api/blogs/${id}`),
   update: (id: string, data: object) => api.put(`/api/blogs/${id}`, data),
@@ -180,15 +203,15 @@ export const blogApi = {
 // ─── Checkout ────────────────────────────────────────────────────────────────
 
 export const checkoutApi = {
-  createOrder: (data: object) => api.post('/api/checkout', data),
+  createOrder: (data: object) => api.post("/api/checkout", data),
 };
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
 export const orderApi = {
-  getMyOrders: () => api.get('/api/orders/my-orders'),
-  getAll: () => api.get('/api/orders'),
-  getPreOrders: () => api.get('/api/orders/pre-orders'),
+  getMyOrders: () => api.get("/api/orders/my-orders"),
+  getAll: () => api.get("/api/orders"),
+  getPreOrders: () => api.get("/api/orders/pre-orders"),
   getById: (id: string) => api.get(`/api/orders/${id}`),
   updateStatus: (id: string, status: string) =>
     api.patch(`/api/orders/${id}/status`, { status }),
@@ -206,32 +229,34 @@ export const orderApi = {
 // ─── Points ──────────────────────────────────────────────────────────────────
 
 export const pointApi = {
-  getBalance: () => api.get('/api/points/balance'),
-  getHistory: () => api.get('/api/points/history'),
-  getRewards: () => api.get('/api/points/rewards'),
+  getBalance: () => api.get("/api/points/balance"),
+  getHistory: () => api.get("/api/points/history"),
+  getRewards: () => api.get("/api/points/rewards"),
   redeemReward: (rewardId: string) =>
     api.post(`/api/points/rewards/${rewardId}/redeem`),
   // Admin
-  adminGetRewards: () => api.get('/api/points/admin/rewards'),
-  adminCreateReward: (data: object) => api.post('/api/points/admin/rewards', data),
+  adminGetRewards: () => api.get("/api/points/admin/rewards"),
+  adminCreateReward: (data: object) =>
+    api.post("/api/points/admin/rewards", data),
   adminUpdateReward: (id: string, data: object) =>
     api.put(`/api/points/admin/rewards/${id}`, data),
-  adminDeleteReward: (id: string) => api.delete(`/api/points/admin/rewards/${id}`),
+  adminDeleteReward: (id: string) =>
+    api.delete(`/api/points/admin/rewards/${id}`),
 };
 
 // ─── Voucher ─────────────────────────────────────────────────────────────────
 
 export const voucherApi = {
-  getAll: () => api.get('/api/voucher'),
-  validate: (code: string) => api.post('/api/voucher/validate', { code }),
+  getAll: () => api.get("/api/voucher"),
+  validate: (code: string) => api.post("/api/voucher/validate", { code }),
   apply: (data: { code: string; orderTotal?: number }) =>
-    api.post('/api/voucher/apply', data),
-  createManual: (data: object) => api.post('/api/voucher/create-manual', data),
-  createRandom: (data: object) => api.post('/api/voucher/create-random', data),
+    api.post("/api/voucher/apply", data),
+  createManual: (data: object) => api.post("/api/voucher/create-manual", data),
+  createRandom: (data: object) => api.post("/api/voucher/create-random", data),
   assignToUser: (data: { voucherId: string; userId: string }) =>
-    api.post('/api/voucher/assign-to-user', data),
+    api.post("/api/voucher/assign-to-user", data),
   assignToAll: (data: { voucherId: string }) =>
-    api.post('/api/voucher/assign-to-all', data),
+    api.post("/api/voucher/assign-to-all", data),
   update: (id: string, data: object) => api.put(`/api/voucher/${id}`, data),
   delete: (id: string) => api.delete(`/api/voucher/${id}`),
   getByIdOrCode: (idOrCode: string) => api.get(`/api/voucher/${idOrCode}`),
@@ -240,10 +265,10 @@ export const voucherApi = {
 // ─── Wishlist ────────────────────────────────────────────────────────────────
 
 export const wishlistApi = {
-  getAll: () => api.get('/api/wishlist'),
-  add: (productId: string) => api.post('/api/wishlist', { productId }),
+  getAll: () => api.get("/api/wishlist"),
+  add: (productId: string) => api.post("/api/wishlist", { productId }),
   remove: (productId: string) => api.delete(`/api/wishlist/${productId}`),
-  clear: () => api.delete('/api/wishlist/clear'),
+  clear: () => api.delete("/api/wishlist/clear"),
   check: (productId: string) => api.get(`/api/wishlist/check/${productId}`),
 };
 
@@ -251,7 +276,7 @@ export const wishlistApi = {
 
 export const aiApi = {
   chat: (data: { message: string; sessionId?: string }) =>
-    api.post('/api/ai/chat', data),
+    api.post("/api/ai/chat", data),
   getHistory: (sessionId: string) => api.get(`/api/ai/history/${sessionId}`),
   deleteHistory: (sessionId: string) =>
     api.delete(`/api/ai/history/${sessionId}`),
@@ -263,8 +288,8 @@ export const aiApi = {
 
 export const supportApi = {
   createTicket: (data: { subject: string; message: string }) =>
-    api.post('/api/support/conversations', data),
-  getTickets: () => api.get('/api/support/conversations'),
+    api.post("/api/support/conversations", data),
+  getTickets: () => api.get("/api/support/conversations"),
   getTicketById: (id: string) => api.get(`/api/support/conversations/${id}`),
   assignTicket: (id: string) =>
     api.patch(`/api/support/conversations/${id}/assign`),
@@ -281,36 +306,36 @@ export const supportApi = {
 // ─── Analytics ───────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
-  getRevenueSummary: () => api.get('/api/analytics/revenue-summary'),
+  getRevenueSummary: () => api.get("/api/analytics/revenue-summary"),
   getRevenue: (params?: { startDate?: string; endDate?: string }) =>
-    api.get('/api/analytics/revenue', { params }),
+    api.get("/api/analytics/revenue", { params }),
   getRevenueChart: (params?: { period?: string }) =>
-    api.get('/api/analytics/revenue/chart', { params }),
+    api.get("/api/analytics/revenue/chart", { params }),
   getTopProducts: (params?: { limit?: number }) =>
-    api.get('/api/analytics/top-products', { params }),
-  getOrdersStats: () => api.get('/api/analytics/orders-stats'),
-  getCustomersStats: () => api.get('/api/analytics/customers-stats'),
-  getRevenueByCategory: () => api.get('/api/analytics/revenue-by-category'),
+    api.get("/api/analytics/top-products", { params }),
+  getOrdersStats: () => api.get("/api/analytics/orders-stats"),
+  getCustomersStats: () => api.get("/api/analytics/customers-stats"),
+  getRevenueByCategory: () => api.get("/api/analytics/revenue-by-category"),
 };
 
 // ─── Upload ──────────────────────────────────────────────────────────────────
 
 export const uploadApi = {
   avatar: (formData: FormData) =>
-    api.post('/api/upload/avatar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/api/upload/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
   productImage: (formData: FormData) =>
-    api.post('/api/upload/product-image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/api/upload/product-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
   brandLogo: (formData: FormData) =>
-    api.post('/api/upload/brand-logo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/api/upload/brand-logo", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
   blogImage: (formData: FormData) =>
-    api.post('/api/upload/blog-image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/api/upload/blog-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
 };
 

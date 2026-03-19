@@ -44,14 +44,16 @@ interface Order {
   status: "pending" | "processing" | "shipping" | "delivered" | "cancelled";
   paymentStatus: "unpaid" | "paid" | "refunded";
   paymentMethod?: string;
-  shippingAddress?: {
-    fullName: string;
-    phoneNumber: string;
-    address: string;
-    city: string;
-    district: string;
-    ward: string;
-  };
+  shippingAddress?:
+    | {
+        fullName: string;
+        phoneNumber: string;
+        address: string;
+        city: string;
+        district: string;
+        ward: string;
+      }
+    | string;
   createdAt: string;
   updatedAt: string;
   deliveryDate?: string;
@@ -86,6 +88,86 @@ const PAYMENT_STATUS_MAP = {
   refunded: { label: "Đã hoàn tiền", color: "#6B7280" },
 };
 
+const toPaymentStatus = (rawPayment: unknown): Order["paymentStatus"] => {
+  const value = String(rawPayment ?? "").toLowerCase();
+
+  if (value === "paid" || value === "success" || value === "completed") {
+    return "paid";
+  }
+
+  if (value === "refunded" || value === "refund") {
+    return "refunded";
+  }
+
+  // Common backend states like "pending"/"failed" are treated as unpaid in UI.
+  return "unpaid";
+};
+
+const toOrderStatus = (rawStatus: unknown): Order["status"] => {
+  const value = String(rawStatus ?? "").toLowerCase();
+  if (value in ORDER_STATUS_MAP) return value as Order["status"];
+  return "pending";
+};
+
+const asImageUrl = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+};
+
+const normalizeOrder = (raw: any): Order => {
+  const sourceItems = Array.isArray(raw?.items)
+    ? raw.items
+    : Array.isArray(raw?.cartItems)
+      ? raw.cartItems
+      : [];
+
+  const items: OrderItem[] = sourceItems.map((item: any) => ({
+    productId: String(
+      item?.productId ?? item?.product?._id ?? item?.product ?? "",
+    ),
+    productName:
+      item?.productName ?? item?.name ?? item?.product?.name ?? "Sản phẩm",
+    quantity: Number(item?.quantity ?? 0),
+    price: Number(item?.price ?? item?.unitPrice ?? item?.product?.price ?? 0),
+    sale_price:
+      typeof item?.sale_price === "number"
+        ? item.sale_price
+        : typeof item?.product?.sale_price === "number"
+          ? item.product.sale_price
+          : undefined,
+    imageUrl:
+      asImageUrl(item?.imageUrl) ??
+      asImageUrl(item?.image_url) ??
+      asImageUrl(item?.image) ??
+      asImageUrl(item?.product?.imageUrl) ??
+      asImageUrl(item?.product?.image_url) ??
+      asImageUrl(item?.product?.image),
+    status: item?.status,
+    isPreOrder: item?.isPreOrder,
+  }));
+
+  const status = toOrderStatus(raw?.status ?? raw?.orderStatus);
+  const paymentStatus = toPaymentStatus(raw?.paymentStatus);
+
+  return {
+    _id: String(raw?._id ?? ""),
+    orderNumber: raw?.orderNumber,
+    userId: String(raw?.userId ?? raw?.customer ?? raw?.user?._id ?? ""),
+    items,
+    totalPrice: Number(raw?.totalPrice ?? raw?.totalAmount ?? 0),
+    status,
+    paymentStatus,
+    paymentMethod: raw?.paymentMethod,
+    shippingAddress: raw?.shippingAddress,
+    createdAt: raw?.createdAt ?? new Date().toISOString(),
+    updatedAt: raw?.updatedAt ?? new Date().toISOString(),
+    deliveryDate: raw?.deliveryDate,
+    cancelReason: raw?.cancelReason,
+    note: raw?.note,
+  };
+};
+
 export default function OrderTrackingScreen({
   navigation,
   route,
@@ -102,8 +184,22 @@ export default function OrderTrackingScreen({
     try {
       setLoading(true);
       const res = await orderApi.getMyOrders();
-      const data = res.data.data ?? res.data;
-      const ordersArray = Array.isArray(data) ? data : [data].filter(Boolean);
+      const payload = res?.data?.data ?? res?.data;
+      const rawOrders = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.orders)
+          ? payload.orders
+          : Array.isArray(res?.data?.orders)
+            ? res.data.orders
+            : Array.isArray(payload?.results)
+              ? payload.results
+              : Array.isArray(payload?.docs)
+                ? payload.docs
+                : [payload].filter(Boolean);
+
+      const ordersArray: Order[] = rawOrders
+        .map(normalizeOrder)
+        .filter((order: Order) => !!order._id);
 
       // Sort by date (newest first)
       ordersArray.sort(
@@ -113,10 +209,29 @@ export default function OrderTrackingScreen({
 
       setOrders(ordersArray);
     } catch (error: any) {
-      console.error("Failed to fetch orders:", error);
+      const status = error?.response?.status;
+      const serverMessage =
+        error?.response?.data?.message || error?.response?.data?.error;
+
+      // React Native surfaces console.error as redbox overlay in dev mode.
+      console.warn(
+        "Failed to fetch orders:",
+        status,
+        serverMessage || error?.message,
+      );
+
+      if (status === 401 || status === 403) {
+        toast.error(
+          "Phiên đăng nhập đã hết hạn",
+          "Vui lòng đăng nhập lại để xem đơn hàng",
+        );
+        navigation?.navigate("Login");
+        return;
+      }
+
       toast.error(
         "Không thể tải đơn hàng",
-        error.message || "Vui lòng thử lại",
+        serverMessage || error.message || "Vui lòng thử lại",
       );
     } finally {
       setLoading(false);
@@ -183,10 +298,8 @@ export default function OrderTrackingScreen({
   const renderOrderItem = (order: Order) => {
     const statusInfo = ORDER_STATUS_MAP[order.status];
     const paymentInfo = PAYMENT_STATUS_MAP[order.paymentStatus];
-    const totalItems = order.items.reduce(
-      (sum, item) => sum + item.quantity,
-      0,
-    );
+    const orderItems = Array.isArray(order.items) ? order.items : [];
+    const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);
 
     return (
       <TouchableOpacity
@@ -279,7 +392,7 @@ export default function OrderTrackingScreen({
 
         {/* Items Preview */}
         <View style={styles.itemsPreview}>
-          {order.items.slice(0, 3).map((item, index) => (
+          {orderItems.slice(0, 3).map((item, index) => (
             <View key={index} style={styles.itemPreviewCard}>
               {item.imageUrl && (
                 <Image
@@ -298,9 +411,9 @@ export default function OrderTrackingScreen({
               </Text>
             </View>
           ))}
-          {order.items.length > 3 && (
+          {orderItems.length > 3 && (
             <Text style={styles.moreItems}>
-              +{order.items.length - 3} sản phẩm khác
+              +{orderItems.length - 3} sản phẩm khác
             </Text>
           )}
         </View>
