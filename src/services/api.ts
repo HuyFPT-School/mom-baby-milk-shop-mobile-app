@@ -48,6 +48,9 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (!original) {
+      return Promise.reject(error);
+    }
 
     // If local server unreachable, retry with Vercel fallback (only when USE_LOCAL)
     const isNetworkError =
@@ -81,7 +84,7 @@ api.interceptors.response.use(
         const refreshToken = await SecureStore.getItemAsync("refreshToken");
         if (!refreshToken) throw new Error("No refresh token");
         const { data } = await axios.post(
-          `${BASE_URL}/api/auth/token`,
+          `${original.baseURL || BASE_URL}/api/auth/token`,
           {},
           { headers: { Authorization: `Bearer ${refreshToken}` } },
         );

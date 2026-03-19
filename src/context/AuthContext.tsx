@@ -169,9 +169,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string) => {
-      await authApi.changePassword({ currentPassword, newPassword });
+      await authApi.changePassword({
+        email: user?.email,
+        currentPassword,
+        newPassword,
+      });
     },
-    [],
+    [user?.email],
   );
 
   return (
