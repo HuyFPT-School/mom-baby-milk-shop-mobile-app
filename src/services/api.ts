@@ -122,8 +122,11 @@ export const authApi = {
     api.post("/api/auth/forget-password", { email }),
   resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
     api.post("/api/auth/reset-password", data),
-  changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    api.post("/api/auth/change-password", data),
+  changePassword: (data: {
+    email?: string;
+    currentPassword: string;
+    newPassword: string;
+  }) => api.post("/api/auth/change-password", data),
   resendOtp: (email: string) => api.post("/api/auth/send-reset-otp", { email }),
 };
 
